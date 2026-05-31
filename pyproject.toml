@@ -1,0 +1,37 @@
+[project]
+name = "memorydog"
+version = "0.1.0"
+description = "A memory-augmented coding agent that gets better the longer you work with it"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+dependencies = [
+    "textual>=1.0",
+    "rich>=13.0",
+    "litellm>=1.50",
+    "sqlalchemy[asyncio]>=2.0",
+    "asyncpg>=0.29",
+    "pgvector>=0.3",
+    "openai>=1.0",
+    "pydantic>=2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.5",
+]
+
+[project.scripts]
+dog = "cli.main:main"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
