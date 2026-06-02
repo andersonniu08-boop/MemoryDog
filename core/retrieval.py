@@ -101,6 +101,17 @@ async def retrieve_memories(
     return results
 
 
+def rerank_with_confidence(
+    results: list[dict],
+    confidence_threshold: float = 0.3,
+) -> list[dict]:
+    filtered = [
+        r for r in results
+        if float(r.get("importance", 0.5) or 0.5) >= confidence_threshold
+    ]
+    return filtered
+
+
 async def log_retrieval_access(memory_ids: list[str]):
     """Increment access_count for retrieved memories."""
     if not memory_ids:

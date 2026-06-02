@@ -7,7 +7,17 @@
     "vscode": "^1.85.0"
   },
   "categories": ["Other"],
-  "activationEvents": [],
+  "activationEvents": [
+    "onCommand:memorydog.start",
+    "onCommand:memorydog.startChat",
+    "onCommand:memorydog.showQuickActions",
+    "onCommand:memorydog.showMemoryPanel",
+    "onCommand:memorydog.showInstinctPanel",
+    "onCommand:memorydog.showDogView",
+    "onView:memorydog.memoryPanel",
+    "onView:memorydog.instinctPanel",
+    "onView:memorydog.dogView"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
@@ -16,12 +26,24 @@
         "title": "MemoryDog: Start Agent"
       },
       {
+        "command": "memorydog.startChat",
+        "title": "MemoryDog: Start Chat (--mock)"
+      },
+      {
+        "command": "memorydog.showQuickActions",
+        "title": "MemoryDog: Quick Actions"
+      },
+      {
         "command": "memorydog.showMemoryPanel",
         "title": "MemoryDog: Show Memory Browser"
       },
       {
         "command": "memorydog.showInstinctPanel",
         "title": "MemoryDog: Show Instincts"
+      },
+      {
+        "command": "memorydog.showDogView",
+        "title": "MemoryDog: Show Mascot"
       }
     ],
     "viewsContainers": {
@@ -35,6 +57,11 @@
     },
     "views": {
       "memorydog": [
+        {
+          "type": "webview",
+          "id": "memorydog.dogView",
+          "name": "Mascot"
+        },
         {
           "type": "webview",
           "id": "memorydog.memoryPanel",

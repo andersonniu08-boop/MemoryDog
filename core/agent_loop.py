@@ -51,11 +51,14 @@ async def run_turn(
     if instincts:
         names = ", ".join(i.name for i in instincts)
         dog_status(f"Instinct activated: {names}")
+        dog_status("Sniffing for related knowledge...")
 
     dog_status("Fetching memories...")
+
     try:
         memory_context = await _retrieve_context(user_input, state.workspace, instincts)
     except Exception:
+        dog_status("Memory system not yet available — running without context")
         memory_context = ""
 
     system_msg = _build_system_with_context(state.workspace, memory_context, instincts)
@@ -134,7 +137,20 @@ async def _retrieve_context(query: str, workspace: str, instincts: list) -> str:
         await log_retrieval_access(ids)
 
     total = await count_memories(workspace)
-    dog_status(f"Found {len(results)} related memories (total: {total})")
+    if results:
+        ages = []
+        for r in results:
+            if r.get("memory_type"):
+                ages.append(r["memory_type"])
+        dog_status(
+            f"Found {len(results)} related memories"
+            + (f" (total: {total})" if total > 0 else "")
+            + (" across workspaces" if any(
+                r.get("workspace_name") != workspace for r in results
+            ) else "")
+        )
+    else:
+        dog_status(f"No matching memories found (total: {total})")
 
     if not results:
         return ""
@@ -208,4 +224,4 @@ async def _extract_and_store(
     if records:
         count = await store_extracted_memories(records)
         if count > 0:
-            dog_status(f"Remembered {count} new facts")
+            dog_status(f"Learned {count} new thing{'s' if count > 1 else ''}")

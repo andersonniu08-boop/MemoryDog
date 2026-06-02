@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Memory Browser</title>
+<style>
+  :root {
+    --bg: #1e1e1e;
+    --fg: #d4d4d4;
+    --accent: #007acc;
+    --muted: #6a6a6a;
+    --surface: #252526;
+    --border: #3e3e3e;
+    --tag-bg: #0e639c;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    padding: 16px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+
+  .header h3 {
+    font-size: 14px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .badge {
+    background: var(--accent);
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 10px;
+    min-width: 20px;
+    text-align: center;
+  }
+
+  .filter-bar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  .filter-bar input {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--fg);
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .filter-bar input:focus {
+    border-color: var(--accent);
+  }
+
+  .filter-bar input::placeholder {
+    color: var(--muted);
+  }
+
+  .filter-bar button {
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+
+  .filter-bar button:hover {
+    opacity: 0.85;
+  }
+
+  .filter-bar button:active {
+    opacity: 0.7;
+  }
+
+  .memory-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .memory-item {
+    background: var(--surface);
+    border-radius: 6px;
+    padding: 10px 12px;
+    border-left: 3px solid var(--accent);
+  }
+
+  .memory-item .meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+
+  .memory-item .workspace-tag {
+    background: var(--tag-bg);
+    color: white;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 7px;
+    border-radius: 8px;
+  }
+
+  .memory-item .timestamp {
+    color: var(--muted);
+    font-size: 10px;
+  }
+
+  .memory-item .content {
+    font-size: 12px;
+    color: var(--fg);
+    word-break: break-word;
+  }
+
+  .status {
+    text-align: center;
+    color: var(--muted);
+    font-style: italic;
+    padding: 24px 0;
+    font-size: 12px;
+  }
+
+  .empty {
+    text-align: center;
+    color: var(--muted);
+    padding: 20px 0;
+    font-size: 12px;
+  }
+
+  .count-row {
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h3>🐕 Memory Browser</h3>
+  <span class="badge" id="memoryCount">0</span>
+</div>
+
+<div class="filter-bar">
+  <input
+    type="text"
+    id="workspaceFilter"
+    placeholder="Filter by workspace..."
+  />
+  <button id="filterBtn">Filter</button>
+</div>
+
+<div id="content">
+  <div class="status" id="statusMsg">Waiting for agent...</div>
+  <div class="memory-list" id="memoryList"></div>
+</div>
+
+<script>
+  const vscode = acquireVsCodeApi();
+
+  const statusMsg = document.getElementById("statusMsg");
+  const memoryList = document.getElementById("memoryList");
+  const memoryCount = document.getElementById("memoryCount");
+  const workspaceFilter = document.getElementById("workspaceFilter");
+  const filterBtn = document.getElementById("filterBtn");
+
+  function formatTime(iso) {
+    const d = new Date(iso);
+    const now = new Date();
+    const diff = now - d;
+    const mins = Math.floor(diff / 60000);
+    const hrs = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return mins + "m ago";
+    if (hrs < 24) return hrs + "h ago";
+    if (days < 7) return days + "d ago";
+    return d.toLocaleDateString();
+  }
+
+  function renderMemories(memories) {
+    if (!memories || memories.length === 0) {
+      memoryList.innerHTML =
+        '<div class="empty">No memories found.</div>';
+      return;
+    }
+    memoryList.innerHTML = memories
+      .map(
+        (m) => `
+      <div class="memory-item">
+        <div class="meta">
+          <span class="workspace-tag">${escapeHtml(m.workspace || "global")}</span>
+          <span class="timestamp">${formatTime(m.timestamp || m.created_at)}</span>
+        </div>
+        <div class="content">${escapeHtml(m.content || m.text || "")}</div>
+      </div>`
+      )
+      .join("");
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function updateStatus(text) {
+    statusMsg.style.display = "block";
+    statusMsg.textContent = text;
+  }
+
+  function hideStatus() {
+    statusMsg.style.display = "none";
+  }
+
+  window.addEventListener("message", (event) => {
+    const msg = event.data;
+
+    if (msg.type === "memories") {
+      hideStatus();
+      memoryCount.textContent = msg.total || msg.memories?.length || 0;
+      renderMemories(msg.memories);
+    }
+
+    if (msg.type === "status") {
+      updateStatus(msg.text);
+      memoryCount.textContent = "0";
+      memoryList.innerHTML = "";
+    }
+  });
+
+  function applyFilter() {
+    const ws = workspaceFilter.value.trim();
+    vscode.postMessage({ type: "filter", workspace: ws });
+  }
+
+  filterBtn.addEventListener("click", applyFilter);
+  workspaceFilter.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") applyFilter();
+  });
+</script>
+</body>
+</html>

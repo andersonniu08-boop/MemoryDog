@@ -1,6 +1,8 @@
 """Tests for MemoryDog core and CLI."""
 import sys
 
+import pytest
+
 from core.agent_loop import AgentState, run_turn
 from core.config import Config
 from core.context import build_messages, build_system_prompt
@@ -221,3 +223,105 @@ def test_instinct_no_match():
     instincts = load_instincts()
     matched = match_instincts(instincts, "hello world", "test-project")
     assert len(matched) == 0
+
+
+def test_ranking_all_zero_scores():
+    from core.ranking import score_memory
+
+    s = score_memory(0.0, 0.0, 0, 0.0, 0.0, False, 0, 0.0)
+    assert isinstance(s, float)
+    assert s >= 0.0
+
+
+def test_ranking_division_by_zero_mean_access():
+    from core.ranking import score_memory
+
+    s = score_memory(
+        vector_score=0.8,
+        bm25_score=0.6,
+        days_since_access=10,
+        importance=0.9,
+        decay_factor=1.0,
+        same_workspace=True,
+        access_count=10,
+        mean_access_count=0.0,
+    )
+    assert s > 0
+    assert isinstance(s, float)
+
+
+def test_ranking_very_old_memory():
+    from core.ranking import score_memory
+
+    very_old = score_memory(0.8, 0.6, 1000, 0.5, 1.0, True, 5, 5.0)
+    recent = score_memory(0.8, 0.6, 0, 0.5, 1.0, True, 5, 5.0)
+    assert very_old < recent
+    assert very_old >= 0.0
+
+
+def test_ranking_sanitize():
+    from core.ranking import sanitize
+
+    assert sanitize(0.5) == 0.5
+    assert sanitize(-0.3) == 0.0
+    assert sanitize(1.5) == 1.0
+    assert sanitize(0.0) == 0.0
+    assert sanitize(1.0) == 1.0
+    assert sanitize(None) == 0.0
+
+
+def test_ranking_workspace_boost():
+    from core.ranking import score_memory
+
+    same = score_memory(0.8, 0.6, 0, 0.5, 1.0, True, 5, 5.0)
+    diff = score_memory(0.8, 0.6, 0, 0.5, 1.0, False, 5, 5.0)
+    assert same > diff
+    assert same - diff == pytest.approx(0.05, abs=1e-6)
+
+    zero_case_same = score_memory(0.0, 0.0, 0, 0.0, 0.0, True, 0, 0.0)
+    zero_case_diff = score_memory(0.0, 0.0, 0, 0.0, 0.0, False, 0, 0.0)
+    assert zero_case_same >= zero_case_diff
+
+
+def test_ranking_handles_none_values():
+    from core.ranking import score_memory
+
+    s = score_memory(None, None, None, None, None, False, None, None)
+    assert isinstance(s, float)
+    assert s >= 0.0
+
+
+def test_rerank_with_confidence():
+    from core.retrieval import rerank_with_confidence
+
+    results = [
+        {"id": "1", "content": "a", "importance": 0.9},
+        {"id": "2", "content": "b", "importance": 0.2},
+        {"id": "3", "content": "c", "importance": 0.5},
+        {"id": "4", "content": "d", "importance": 0.3},
+        {"id": "5", "content": "e", "importance": 0.1},
+    ]
+    filtered = rerank_with_confidence(results, confidence_threshold=0.3)
+    ids = [r["id"] for r in filtered]
+    assert "1" in ids
+    assert "2" not in ids
+    assert "3" in ids
+    assert "4" in ids
+    assert "5" not in ids
+
+
+def test_rerank_with_confidence_empty():
+    from core.retrieval import rerank_with_confidence
+
+    assert rerank_with_confidence([]) == []
+
+
+def test_rerank_with_confidence_missing_importance():
+    from core.retrieval import rerank_with_confidence
+
+    results = [
+        {"id": "1", "content": "a"},
+        {"id": "2", "content": "b", "importance": None},
+    ]
+    filtered = rerank_with_confidence(results, confidence_threshold=0.3)
+    assert len(filtered) == 2

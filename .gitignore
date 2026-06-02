@@ -9,3 +9,6 @@ venv/
 *.swp
 *.swo
 .DS_Store
+vscode/node_modules/
+vscode/out/
+vscode/package-lock.json

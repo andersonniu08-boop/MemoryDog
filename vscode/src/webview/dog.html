@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MemoryDog Mascot</title>
+<style>
+  :root {
+    --bg: #1e1e1e;
+    --accent: #007acc;
+    --body-color: #d4a574;
+    --body-dark: #b87333;
+    --ear-color: #c4884d;
+    --nose-color: #1a1a1a;
+    --eye-color: #1a1a1a;
+    --tongue-color: #e8737a;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  .scene {
+    position: relative;
+    width: 180px;
+    height: 200px;
+  }
+
+  /* ---------- DOG ---------- */
+  .dog {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    transition: transform 0.4s ease;
+  }
+
+  /* Body */
+  .body {
+    width: 100px;
+    height: 70px;
+    background: var(--body-color);
+    border-radius: 50% 50% 45% 45%;
+    position: relative;
+    margin: 0 auto;
+    box-shadow: inset 0 -8px 12px rgba(0,0,0,0.1);
+  }
+
+  /* Head */
+  .head {
+    width: 72px;
+    height: 64px;
+    background: var(--body-color);
+    border-radius: 50%;
+    position: absolute;
+    top: -42px;
+    left: 50%;
+    transform: translateX(-50%);
+    box-shadow: inset 0 -4px 8px rgba(0,0,0,0.08);
+  }
+
+  /* Ears */
+  .ear {
+    width: 22px;
+    height: 34px;
+    background: var(--ear-color);
+    border-radius: 50% 50% 30% 30%;
+    position: absolute;
+    top: -18px;
+    transition: transform 0.3s ease;
+  }
+  .ear.left { left: -8px; transform: rotate(-20deg); }
+  .ear.right { right: -8px; transform: rotate(20deg); }
+
+  /* Eyes */
+  .eyes { position: absolute; top: 22px; left: 50%; transform: translateX(-50%); display: flex; gap: 18px; }
+  .eye {
+    width: 12px; height: 14px;
+    background: var(--eye-color);
+    border-radius: 50%;
+    position: relative;
+    transition: height 0.3s ease;
+  }
+  .eye::after {
+    content: "";
+    position: absolute;
+    width: 4px; height: 4px;
+    background: white;
+    border-radius: 50%;
+    top: 3px; left: 3px;
+  }
+
+  /* Nose */
+  .nose {
+    width: 18px; height: 12px;
+    background: var(--nose-color);
+    border-radius: 50%;
+    position: absolute;
+    top: 36px; left: 50%;
+    transform: translateX(-50%);
+    transition: transform 0.2s ease;
+  }
+
+  /* Mouth / tongue */
+  .mouth {
+    position: absolute;
+    top: 44px; left: 50%;
+    transform: translateX(-50%);
+    width: 20px; height: 0;
+    border-bottom: 2px solid var(--nose-color);
+    border-radius: 0 0 50% 50%;
+    transition: height 0.3s ease, border-width 0.3s ease;
+  }
+  .tongue {
+    position: absolute;
+    top: 2px; left: 50%;
+    transform: translateX(-50%);
+    width: 10px; height: 0;
+    background: var(--tongue-color);
+    border-radius: 0 0 50% 50%;
+    transition: height 0.3s ease;
+  }
+
+  /* Legs */
+  .legs {
+    display: flex;
+    justify-content: space-between;
+    padding: 0 12px;
+    margin-top: -6px;
+  }
+  .leg {
+    width: 18px; height: 28px;
+    background: var(--body-dark);
+    border-radius: 40%;
+  }
+
+  /* Tail */
+  .tail {
+    position: absolute;
+    right: -26px; top: 4px;
+    width: 28px; height: 16px;
+    background: var(--body-color);
+    border-radius: 50%;
+    transform-origin: left center;
+    transition: transform 0.3s ease;
+  }
+
+  /* Shadow */
+  .shadow {
+    width: 80px; height: 10px;
+    background: rgba(0,0,0,0.3);
+    border-radius: 50%;
+    margin: 4px auto 0;
+    transition: transform 0.4s ease, opacity 0.4s ease;
+  }
+
+  /* ---------- ANIMATIONS ---------- */
+
+  /* Idle — breathing */
+  .state-idle .body {
+    animation: breathe 3s ease-in-out infinite;
+  }
+  .state-idle .head {
+    animation: breatheHead 3s ease-in-out infinite;
+  }
+
+  @keyframes breathe {
+    0%, 100% { transform: scaleY(1) scaleX(1); }
+    50% { transform: scaleY(1.06) scaleX(0.97); }
+  }
+  @keyframes breatheHead {
+    0%, 100% { transform: translateX(-50%) translateY(0); }
+    50% { transform: translateX(-50%) translateY(-3px); }
+  }
+
+  /* Sniffing — nose moves side to side */
+  .state-sniffing .nose {
+    animation: sniff 0.5s ease-in-out infinite alternate;
+  }
+  .state-sniffing .tail {
+    animation: tailWag 0.4s ease-in-out infinite alternate;
+  }
+  @keyframes sniff {
+    0% { transform: translateX(-50%) translateX(-3px); }
+    100% { transform: translateX(-50%) translateX(3px); }
+  }
+  @keyframes tailWag {
+    0% { transform: rotate(-15deg); }
+    100% { transform: rotate(25deg); }
+  }
+
+  /* Excited — jumping */
+  .state-excited .dog {
+    animation: jump 0.5s ease-in-out infinite alternate;
+  }
+  .state-excited .tail {
+    animation: tailWagFast 0.15s ease-in-out infinite alternate;
+  }
+  .state-excited .tongue { height: 12px; }
+  .state-excited .mouth { height: 6px; border-width: 3px; }
+  .state-excited .ear.left { transform: rotate(-35deg) scaleX(1.1); }
+  .state-excited .ear.right { transform: rotate(35deg) scaleX(1.1); }
+
+  @keyframes jump {
+    0% { transform: translateX(-50%) translateY(0); }
+    100% { transform: translateX(-50%) translateY(-18px); }
+  }
+  @keyframes tailWagFast {
+    0% { transform: rotate(-25deg); }
+    100% { transform: rotate(35deg); }
+  }
+
+  /* Sleeping — slow pulse */
+  .state-sleeping .dog {
+    animation: sleepBob 4s ease-in-out infinite;
+  }
+  .state-sleeping .body {
+    animation: sleepPulse 4s ease-in-out infinite;
+  }
+  .state-sleeping .eye { height: 2px; border-bottom: 2px solid var(--eye-color); background: transparent; }
+  .state-sleeping .eye::after { display: none; }
+  .state-sleeping .tongue { height: 0; }
+  .state-sleeping .shadow { opacity: 0.4; transform: scaleX(0.8); }
+
+  @keyframes sleepBob {
+    0%, 100% { transform: translateX(-50%) translateY(0); }
+    50% { transform: translateX(-50%) translateY(-4px); }
+  }
+  @keyframes sleepPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.03); }
+  }
+
+  /* Speech bubble */
+  .speech-bubble {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #333;
+    color: #d4d4d4;
+    padding: 6px 14px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    pointer-events: none;
+  }
+  .speech-bubble::after {
+    content: "";
+    position: absolute;
+    bottom: -6px; left: 50%;
+    transform: translateX(-50%);
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 6px solid #333;
+  }
+
+  /* State label */
+  .label {
+    color: #6a6a6a;
+    font-size: 11px;
+    margin-top: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+  }
+</style>
+</head>
+<body>
+
+<div class="scene" id="scene">
+  <div class="dog">
+    <div class="head">
+      <div class="ear left"></div>
+      <div class="ear right"></div>
+      <div class="eyes">
+        <div class="eye"></div>
+        <div class="eye"></div>
+      </div>
+      <div class="nose"></div>
+      <div class="mouth"><div class="tongue"></div></div>
+    </div>
+    <div class="body">
+      <div class="tail"></div>
+    </div>
+    <div class="legs">
+      <div class="leg"></div>
+      <div class="leg"></div>
+    </div>
+    <div class="shadow"></div>
+  </div>
+</div>
+
+<div class="label" id="stateLabel">idle</div>
+
+<script>
+  const vscode = acquireVsCodeApi();
+  const scene = document.getElementById("scene");
+  const label = document.getElementById("stateLabel");
+  let currentState = "idle";
+
+  function setState(state) {
+    scene.className = "scene state-" + state;
+    label.textContent = state;
+    currentState = state;
+  }
+
+  window.addEventListener("message", (event) => {
+    const msg = event.data;
+    if (msg.type === "state" && msg.state) {
+      setState(msg.state);
+    }
+  });
+
+  setState("idle");
+
+  vscode.postMessage({ type: "ready" });
+</script>
+</body>
+</html>
