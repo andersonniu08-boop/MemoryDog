@@ -37,13 +37,13 @@ dog chat
 
 ```toml
 [provider]
-api_base = "https://api.anthropic.com"
+model = "anthropic/claude-sonnet-4-20250514"
 api_key = "sk-..."
-model = "claude-sonnet-4-20250514"
+# api_base = "https://custom-api.example.com"  # optional
 
 [embedding]
-provider = "openai"
-model = "text-embedding-3-small"
+model = "openai/text-embedding-3-small"
+api_key = "sk-..."
 
 [database]
 url = "postgresql+asyncpg://memorydog:memorydog@localhost:5432/memorydog"

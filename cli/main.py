@@ -78,13 +78,9 @@ def _run_config_wizard():
         config = Config()
 
     print("\n\U0001F415 MemoryDog Configuration\n")
+    print("Use LiteLLM model format: provider/model")
+    print("Examples: anthropic/claude-sonnet-4-20250514, openai/gpt-4o, ollama/llama3\n")
     print("Press Enter to keep current values.\n")
-
-    providers = ["anthropic", "openai", "gemini", "deepseek", "openrouter", "ollama"]
-    print("Supported providers: " + ", ".join(providers))
-    provider = input(f"Provider [{config.provider.provider}]: ").strip()
-    if provider:
-        config.provider.provider = provider
 
     model = input(f"Model [{config.provider.model}]: ").strip()
     if model:
@@ -95,16 +91,16 @@ def _run_config_wizard():
         config.provider.api_key = api_key
 
     api_base = input(
-        f"API Base (optional) [{config.provider.api_base or 'none'}]: "
+        f"API Base / custom URL (optional) [{config.provider.api_base or 'none'}]: "
     ).strip()
     if api_base:
         config.provider.api_base = api_base
 
-    embed_provider = input(
-        f"\nEmbedding provider [{config.embedding.provider}]: "
+    embed_model = input(
+        f"\nEmbedding model [{config.embedding.model}]: "
     ).strip()
-    if embed_provider:
-        config.embedding.provider = embed_provider
+    if embed_model:
+        config.embedding.model = embed_model
 
     save_config(config)
     print("\n\U0001F415 Config saved to ~/.memorydog/config.toml")

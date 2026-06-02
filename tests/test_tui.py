@@ -113,8 +113,8 @@ async def test_chat_screen_exists():
 
 def test_config_defaults():
     config = Config()
-    assert config.provider.provider == "anthropic"
-    assert config.embedding.provider == "openai"
+    assert "claude" in config.provider.model
+    assert "text-embedding" in config.embedding.model
     assert config.database.url
 
 
@@ -125,7 +125,7 @@ def test_config_load_creates_file(tmp_path, monkeypatch):
     monkeypatch.setattr(config_module, "CONFIG_PATH", tmp_path / ".memorydog" / "config.toml")
 
     cfg = config_module.create_default_config()
-    assert cfg.provider.model == "claude-sonnet-4-20250514"
+    assert "claude" in cfg.provider.model
     assert (tmp_path / ".memorydog" / "config.toml").exists()
 
 

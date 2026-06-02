@@ -9,15 +9,14 @@ CONFIG_PATH = CONFIG_DIR / "config.toml"
 
 DEFAULT_CONFIG = """\
 # MemoryDog configuration
+# Use LiteLLM model format: provider/model
 [provider]
-# anthropic | openai | gemini | deepseek | openrouter | ollama
-provider = "anthropic"
-model = "claude-sonnet-4-20250514"
+model = "anthropic/claude-sonnet-4-20250514"
 api_key = ""
+# api_base = "https://custom-api.example.com"  # optional
 
 [embedding]
-provider = "openai"
-model = "text-embedding-3-small"
+model = "openai/text-embedding-3-small"
 api_key = ""
 
 [database]
@@ -27,16 +26,14 @@ url = "postgresql+asyncpg://memorydog:memorydog@localhost:5432/memorydog"
 
 @dataclass
 class ProviderConfig:
-    provider: str = "anthropic"
-    model: str = "claude-sonnet-4-20250514"
+    model: str = "anthropic/claude-sonnet-4-20250514"
     api_key: str = ""
     api_base: str = ""
 
 
 @dataclass
 class EmbeddingConfig:
-    provider: str = "openai"
-    model: str = "text-embedding-3-small"
+    model: str = "openai/text-embedding-3-small"
     api_key: str = ""
 
 
@@ -73,26 +70,27 @@ def load_config() -> Config:
     embedding = EmbeddingConfig(**data.get("embedding", {}))
     database = DatabaseConfig(**data.get("database", {}))
 
-    provider.api_key = provider.api_key or os.environ.get(
-        f"{provider.provider.upper()}_API_KEY", ""
-    )
-    embedding.api_key = embedding.api_key or os.environ.get(
-        f"{embedding.provider.upper()}_API_KEY", ""
-    )
+    provider.api_key = provider.api_key or os.environ.get("MEMORYDOG_API_KEY", "")
+    embedding.api_key = embedding.api_key or provider.api_key
 
     return Config(provider=provider, embedding=embedding, database=database)
 
 
 def save_config(config: Config) -> None:
+    base_line = (
+        f'api_base = "{config.provider.api_base}"'
+        if config.provider.api_base
+        else '# api_base = "https://custom-api.example.com"  # optional'
+    )
     content = f"""\
 # MemoryDog configuration
+# Use LiteLLM model format: provider/model
 [provider]
-provider = "{config.provider.provider}"
 model = "{config.provider.model}"
 api_key = "{config.provider.api_key}"
+{base_line}
 
 [embedding]
-provider = "{config.embedding.provider}"
 model = "{config.embedding.model}"
 api_key = "{config.embedding.api_key}"
 
