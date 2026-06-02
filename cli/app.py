@@ -2,6 +2,7 @@
 from textual.app import App
 
 from cli.ui.chat import ChatScreen
+from core.provider import BaseProvider
 
 
 class MemoryDogApp(App):
@@ -24,9 +25,22 @@ class MemoryDogApp(App):
     }
     """
 
-    def __init__(self, workspace: str = "."):
+    def __init__(
+        self,
+        workspace: str = ".",
+        provider: BaseProvider | None = None,
+        model_name: str = "mock",
+    ):
         super().__init__()
         self.workspace = workspace
+        self.provider = provider
+        self.model_name = model_name
 
     def on_mount(self):
-        self.push_screen(ChatScreen(workspace=self.workspace))
+        self.push_screen(
+            ChatScreen(
+                workspace=self.workspace,
+                provider=self.provider,
+                model_name=self.model_name,
+            )
+        )

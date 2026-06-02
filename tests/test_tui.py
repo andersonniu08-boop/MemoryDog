@@ -2,8 +2,9 @@
 import sys
 
 from core.agent_loop import AgentState, run_turn
+from core.config import Config
 from core.context import build_messages, build_system_prompt
-from core.provider import Message, MockProvider
+from core.provider import LiteLLMProvider, Message, MockProvider
 from core.tools import TOOL_REGISTRY, execute_tool, get_tool_definitions
 
 
@@ -14,6 +15,21 @@ def test_mock_provider_returns_response():
     assert response.content
     assert isinstance(response.content, str)
     assert len(response.content) > 0
+
+
+def test_mock_provider_tracks_tokens():
+    provider = MockProvider()
+    provider.chat([Message(role="user", content="test")])
+    assert provider.last_tokens >= 0
+
+
+def test_litellm_provider_instantiation():
+    provider = LiteLLMProvider(
+        model="claude-sonnet-4-20250514",
+        api_key="test-key",
+    )
+    assert provider.model == "claude-sonnet-4-20250514"
+    assert provider.last_tokens == 0
 
 
 def test_build_system_prompt():
@@ -89,6 +105,34 @@ def test_cli_help_runs():
 async def test_chat_screen_exists():
     from cli.ui.chat import ChatScreen
 
-    screen = ChatScreen(workspace="test-project")
+    screen = ChatScreen(workspace="test-project", model_name="test-model")
     assert screen is not None
     assert screen.workspace == "test-project"
+    assert screen.model_name == "test-model"
+
+
+def test_config_defaults():
+    config = Config()
+    assert config.provider.provider == "anthropic"
+    assert config.embedding.provider == "openai"
+    assert config.database.url
+
+
+def test_config_load_creates_file(tmp_path, monkeypatch):
+    import core.config as config_module
+
+    monkeypatch.setattr(config_module, "CONFIG_DIR", tmp_path / ".memorydog")
+    monkeypatch.setattr(config_module, "CONFIG_PATH", tmp_path / ".memorydog" / "config.toml")
+
+    cfg = config_module.create_default_config()
+    assert cfg.provider.model == "claude-sonnet-4-20250514"
+    assert (tmp_path / ".memorydog" / "config.toml").exists()
+
+
+def test_make_mock_provider():
+    from cli.main import _make_mock_provider
+
+    provider = _make_mock_provider()
+    from core.provider import MockProvider
+
+    assert isinstance(provider, MockProvider)
