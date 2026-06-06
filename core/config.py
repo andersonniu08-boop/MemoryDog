@@ -1,4 +1,5 @@
 """Configuration management for MemoryDog."""
+
 import os
 import tomllib
 from dataclasses import dataclass, field
@@ -11,13 +12,12 @@ DEFAULT_CONFIG = """\
 # MemoryDog configuration
 # Use LiteLLM model format: provider/model
 [provider]
-model = "anthropic/claude-sonnet-4-20250514"
+model = "deepseek/deepseek-chat"
 api_key = ""
 # api_base = "https://custom-api.example.com"  # optional
 
 [embedding]
-model = "openai/text-embedding-3-small"
-api_key = ""
+model = "nomic-embed-text"
 
 [database]
 url = "postgresql+asyncpg://memorydog:memorydog@localhost:5432/memorydog"
@@ -26,15 +26,14 @@ url = "postgresql+asyncpg://memorydog:memorydog@localhost:5432/memorydog"
 
 @dataclass
 class ProviderConfig:
-    model: str = "anthropic/claude-sonnet-4-20250514"
+    model: str = "deepseek/deepseek-chat"
     api_key: str = ""
     api_base: str = ""
 
 
 @dataclass
 class EmbeddingConfig:
-    model: str = "openai/text-embedding-3-small"
-    api_key: str = ""
+    model: str = "nomic-embed-text"
 
 
 @dataclass
@@ -71,7 +70,6 @@ def load_config() -> Config:
     database = DatabaseConfig(**data.get("database", {}))
 
     provider.api_key = provider.api_key or os.environ.get("MEMORYDOG_API_KEY", "")
-    embedding.api_key = embedding.api_key or provider.api_key
 
     return Config(provider=provider, embedding=embedding, database=database)
 
@@ -92,7 +90,6 @@ api_key = "{config.provider.api_key}"
 
 [embedding]
 model = "{config.embedding.model}"
-api_key = "{config.embedding.api_key}"
 
 [database]
 url = "{config.database.url}"

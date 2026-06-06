@@ -1,4 +1,5 @@
 """Textual application bootstrap."""
+
 from textual.app import App
 
 from cli.ui.chat import ChatScreen
@@ -27,6 +28,13 @@ class MemoryDogApp(App):
     #conversation {
         height: 1fr;
         border: none;
+    }
+    #streaming-response {
+        height: auto;
+        max-height: 5;
+        dock: bottom;
+        margin: 0 1;
+        color: $text-success;
     }
     #file-preview {
         height: 1fr;

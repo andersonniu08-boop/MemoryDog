@@ -1,4 +1,5 @@
 """Instinct engine — TOML-based procedural modules."""
+
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path

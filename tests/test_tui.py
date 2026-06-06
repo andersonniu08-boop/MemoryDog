@@ -1,4 +1,5 @@
 """Tests for MemoryDog core and CLI."""
+
 import sys
 
 import pytest
@@ -53,8 +54,9 @@ def test_get_tool_definitions_returns_list():
     assert isinstance(defs, list)
     assert len(defs) >= 6
     for d in defs:
-        assert "name" in d
-        assert "description" in d
+        assert d["type"] == "function"
+        assert "name" in d["function"]
+        assert "description" in d["function"]
 
 
 def test_tool_registry_has_all_tools():
@@ -115,8 +117,8 @@ async def test_chat_screen_exists():
 
 def test_config_defaults():
     config = Config()
-    assert "claude" in config.provider.model
-    assert "text-embedding" in config.embedding.model
+    assert "deepseek" in config.provider.model
+    assert "nomic-embed-text" in config.embedding.model
     assert config.database.url
 
 
@@ -127,7 +129,7 @@ def test_config_load_creates_file(tmp_path, monkeypatch):
     monkeypatch.setattr(config_module, "CONFIG_PATH", tmp_path / ".memorydog" / "config.toml")
 
     cfg = config_module.create_default_config()
-    assert "claude" in cfg.provider.model
+    assert "deepseek" in cfg.provider.model
     assert (tmp_path / ".memorydog" / "config.toml").exists()
 
 
@@ -276,7 +278,7 @@ def test_ranking_workspace_boost():
     same = score_memory(0.8, 0.6, 0, 0.5, 1.0, True, 5, 5.0)
     diff = score_memory(0.8, 0.6, 0, 0.5, 1.0, False, 5, 5.0)
     assert same > diff
-    assert same - diff == pytest.approx(0.05, abs=1e-6)
+    assert same - diff == pytest.approx(0.20, abs=1e-6)
 
     zero_case_same = score_memory(0.0, 0.0, 0, 0.0, 0.0, True, 0, 0.0)
     zero_case_diff = score_memory(0.0, 0.0, 0, 0.0, 0.0, False, 0, 0.0)

@@ -1,4 +1,5 @@
 """MemoryDog CLI entry point."""
+
 import argparse
 
 
@@ -10,9 +11,7 @@ def main():
 
     chat_parser = sub.add_parser("chat", help="Start interactive chat session")
     chat_parser.add_argument("-w", "--workspace", default=".", help="Workspace path")
-    chat_parser.add_argument(
-        "-m", "--model", help="Override model from config"
-    )
+    chat_parser.add_argument("-m", "--model", help="Override model from config")
     chat_parser.add_argument(
         "--mock", action="store_true", help="Use mock provider (no API needed)"
     )
@@ -27,9 +26,9 @@ def main():
     show_parser = instinct_sub.add_parser("show", help="Show instinct details")
     show_parser.add_argument("name", help="Instinct name")
     edit_parser = instinct_sub.add_parser("edit", help="Open instincts file in editor")
-    edit_parser.add_argument(
-        "--editor", help="Editor command (default: $EDITOR or nano)"
-    )
+    edit_parser.add_argument("--editor", help="Editor command (default: $EDITOR or nano)")
+
+    sub.add_parser("install", help="Install dog to ~/.local/bin")
 
     args = parser.parse_args()
 
@@ -41,14 +40,18 @@ def main():
         if args.mock:
             provider = _make_mock_provider()
             model_name = "mock"
+            print("🐕 Starting in offline mode (--mock). No API key required.")
         else:
             provider, model_name = _make_provider_from_config(config, args.model)
+            result = provider.check_connection()
+            if result is not None:
+                print(f"  \u26a0 API key rejected. Starting in offline mode instead.\n  {result}\n")
+                provider = _make_mock_provider()
+                model_name = "mock"
 
         from cli.app import MemoryDogApp
 
-        app = MemoryDogApp(
-            workspace=args.workspace, provider=provider, model_name=model_name
-        )
+        app = MemoryDogApp(workspace=args.workspace, provider=provider, model_name=model_name)
         app.run()
 
     elif args.command == "config":
@@ -59,6 +62,9 @@ def main():
 
     elif args.command == "instinct":
         _run_instinct_cmd(args)
+
+    elif args.command == "install":
+        _run_install()
 
     else:
         parser.print_help()
@@ -96,7 +102,7 @@ def _run_config_wizard():
     except Exception:
         config = Config()
 
-    print("\n\U0001F415 MemoryDog Configuration\n")
+    print("\n\U0001f415 MemoryDog Configuration\n")
     print("Use LiteLLM model format: provider/model")
     print("Examples: anthropic/claude-sonnet-4-20250514, openai/gpt-4o, ollama/llama3\n")
     print("Press Enter to keep current values.\n")
@@ -115,14 +121,9 @@ def _run_config_wizard():
     if api_base:
         config.provider.api_base = api_base
 
-    embed_model = input(
-        f"\nEmbedding model [{config.embedding.model}]: "
-    ).strip()
-    if embed_model:
-        config.embedding.model = embed_model
-
     save_config(config)
-    print("\n\U0001F415 Config saved to ~/.memorydog/config.toml")
+    print("\n\U0001f415 Config saved to ~/.memorydog/config.toml")
+    print("Embeddings: Ollama + nomic-embed-text (local)")
     print("Run 'dog chat' to start.")
     print("Run 'dog instinct list' to see your instincts.")
 
@@ -136,9 +137,9 @@ def _run_instinct_cmd(args):
     if args.instinct_cmd == "list":
         instincts = load_instincts()
         if not instincts:
-            print("\U0001F415 No instincts found.")
+            print("\U0001f415 No instincts found.")
             return
-        print("\n\U0001F415 Instincts\n")
+        print("\n\U0001f415 Instincts\n")
         for i, inst in enumerate(instincts, 1):
             triggers = ", ".join(inst.triggers)
             print(f"  {i}. {inst.name}")
@@ -152,7 +153,7 @@ def _run_instinct_cmd(args):
         name_lower = args.name.lower()
         for inst in instincts:
             if inst.name.lower() == name_lower:
-                print(f"\n\U0001F415 {inst.name}\n")
+                print(f"\n\U0001f415 {inst.name}\n")
                 print(f"  Description: {inst.description}")
                 print(f"  Triggers: {', '.join(inst.triggers)}")
                 print(f"  Retrieval bias: {', '.join(inst.retrieval_bias)}")
@@ -164,8 +165,7 @@ def _run_instinct_cmd(args):
         import os
         import subprocess
 
-        editor = args.editor or os.environ.get("EDITOR") or \
-                 os.environ.get("VISUAL") or "nano"
+        editor = args.editor or os.environ.get("EDITOR") or os.environ.get("VISUAL") or "nano"
         path = str(ensure_instincts_file())
         subprocess.call([editor, path])
 
@@ -185,7 +185,7 @@ def _run_status():
 
     instincts = load_instincts()
 
-    print("\n\U0001F415 MemoryDog Status\n")
+    print("\n\U0001f415 MemoryDog Status\n")
     print(f"  Provider: {config.provider.model}")
     print(f"  Embedding: {config.embedding.model}")
     print(f"  Instincts: {len(instincts)} loaded")
@@ -199,6 +199,8 @@ def _run_status():
         print(f"  API Key: {masked}")
 
     _check_db()
+    _check_api_key(config)
+    _check_embedding()
 
 
 def _check_db():
@@ -216,16 +218,88 @@ def _check_db():
         asyncio.run(check())
         print("  \u2705 Database: connected and migrated")
     except Exception:
-        print(
-            "  \u2753 Database: not available"
-            " (install Docker and run: docker compose up)"
+        print("  \u2753 Database: not available (install Docker and run: docker compose up)")
+
+
+def _check_api_key(config):
+    """Test the configured API key against the provider."""
+    key = config.provider.api_key
+    if not key:
+        print("  \u26a0 API key: not set")
+        return
+
+    try:
+        from core.provider import LiteLLMProvider
+
+        provider = LiteLLMProvider(
+            model=config.provider.model,
+            api_key=key,
+            api_base=config.provider.api_base or None,
         )
+        result = provider.check_connection()
+        if result is None:
+            print("  \u2705 API key: valid")
+        else:
+            print(f"  \u2753 API key: {result}")
+    except Exception as e:
+        print(f"  \u2753 API key: check failed ({e})")
+
+
+def _check_embedding():
+    try:
+        import asyncio
+
+        from core.memory import check_ollama
+
+        status = asyncio.run(check_ollama())
+        if status is None:
+            print("  \u2705 Embeddings: Ollama connected")
+        else:
+            print(f"  \u2753 Embeddings: {status}")
+    except Exception:
+        print("  \u2753 Embeddings: check failed")
 
 
 def _mask(key: str) -> str:
     if not key or len(key) < 8:
         return "(not set)"
     return key[:4] + "..." + key[-4:]
+
+
+def _run_install():
+    """Install the dog command to ~/.local/bin."""
+    from pathlib import Path
+
+    bin_dir = Path.home() / ".local" / "bin"
+    bin_dir.mkdir(parents=True, exist_ok=True)
+
+    repo_root = Path(__file__).resolve().parent.parent
+    launcher = repo_root / "dog"
+    link = bin_dir / "dog"
+
+    if not launcher.exists():
+        print("  \u2753 Launcher script not found at repo root")
+        return
+
+    if link.exists() and link.is_symlink():
+        print(f"  \u2705 Already installed at {link}")
+        return
+
+    try:
+        link.symlink_to(launcher)
+        print(f"  \u2705 Installed dog to {link}")
+        _check_path(bin_dir)
+    except Exception as e:
+        print(f"  \u2753 Install failed: {e}")
+
+
+def _check_path(bin_dir):
+    import os
+
+    if str(bin_dir) not in os.environ.get("PATH", ""):
+        shell = os.environ.get("SHELL", "bash")
+        rc = ".bashrc" if "bash" in shell else ".zshrc"
+        print(f"  \u2728 Add to PATH: echo 'export PATH=\"$PATH:{bin_dir}\"' >> ~/{rc}")
 
 
 if __name__ == "__main__":

@@ -39,9 +39,7 @@ async def _run_sessions(
         ws = Path(workspace_dir)
         for cmd in session.get("setup_commands", []):
             try:
-                subprocess.run(
-                    cmd, shell=True, cwd=str(ws), capture_output=True, timeout=30
-                )
+                subprocess.run(cmd, shell=True, cwd=str(ws), capture_output=True, timeout=30)
             except Exception as exc:
                 result["exception"] = f"setup failed: {exc}"
                 results.append(result)
@@ -61,9 +59,7 @@ async def _run_sessions(
         passed = 0
         for vcmd in session.get("verification", []):
             try:
-                r = subprocess.run(
-                    vcmd, shell=True, cwd=str(ws), capture_output=True, timeout=10
-                )
+                r = subprocess.run(vcmd, shell=True, cwd=str(ws), capture_output=True, timeout=10)
                 if r.returncode == 0:
                     passed += 1
             except Exception:
@@ -71,9 +67,7 @@ async def _run_sessions(
         result["verification_passed"] = passed
 
         if not memory_on:
-            state = AgentState(
-                workspace=os.path.basename(os.path.abspath(workspace_dir))
-            )
+            state = AgentState(workspace=os.path.basename(os.path.abspath(workspace_dir)))
 
         results.append(result)
 
@@ -81,9 +75,9 @@ async def _run_sessions(
 
 
 def _print_table(task_name: str, results_on: list[dict], results_off: list[dict]) -> None:
-    print(f"\n{'='*75}")
+    print(f"\n{'=' * 75}")
     print(f"  Benchmark: {task_name}")
-    print(f"{'='*75}")
+    print(f"{'=' * 75}")
     print(
         f"  {'Sess':<6}"
         f" {'Memory ON — Verify':>20}"
@@ -96,7 +90,7 @@ def _print_table(task_name: str, results_on: list[dict], results_off: list[dict]
         f" {'History':>9}"
         f" {'Instincts':>12}"
     )
-    print(f"  {'-'*70}")
+    print(f"  {'-' * 70}")
 
     for r_on, r_off in zip(results_on, results_off):
         on_verify = f"{r_on['verification_passed']}/{r_on['verification_total']}"
@@ -126,7 +120,7 @@ def _print_table(task_name: str, results_on: list[dict], results_off: list[dict]
     on_max = sum(r["verification_total"] for r in results_on)
     off_max = sum(r["verification_total"] for r in results_off)
 
-    print(f"  {'-'*70}")
+    print(f"  {'-' * 70}")
     print(
         f"  {'TOTAL':<6}"
         f" {f'{on_total}/{on_max}':>20}"
@@ -134,7 +128,7 @@ def _print_table(task_name: str, results_on: list[dict], results_off: list[dict]
         f"  |  "
         f" {f'{off_total}/{off_max}':>20}"
     )
-    print(f"{'='*75}\n")
+    print(f"{'=' * 75}\n")
 
 
 async def run_benchmark(task_name: str) -> tuple[list[dict], list[dict]]:

@@ -1,4 +1,5 @@
 """PostgreSQL database connection and migration runner."""
+
 from pathlib import Path
 
 import asyncpg

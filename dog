@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# MemoryDog launcher — activates venv automatically, works from symlinks
+SCRIPT="$(readlink -f "$0")"
+DIR="$(cd "$(dirname "$SCRIPT")" && pwd)"
+exec "$DIR/.venv/bin/dog" "$@"

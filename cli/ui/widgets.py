@@ -1,4 +1,5 @@
 """Custom widgets for MemoryDog TUI."""
+
 from textual.containers import Container
 from textual.reactive import reactive
 from textual.widgets import RichLog, Static
@@ -12,6 +13,7 @@ class StatusBar(Static):
     instinct_count: reactive[int] = reactive(0)
     session_time: reactive[str] = reactive("0m")
     model: reactive[str] = reactive("mock")
+    tokens: reactive[int] = reactive(0)
 
     def on_mount(self):
         self.border_title = self._build_text()
@@ -23,14 +25,17 @@ class StatusBar(Static):
         self.border_title = self._build_text()
 
     def _build_text(self) -> str:
-        return (
-            f"\U0001F415 Ready  "
-            f"|  \u25a1 {self.workspace}  "
-            f"|  {self.memory_count} memories  "
-            f"|  {self.instinct_count} instincts  "
-            f"|  {self.session_time}  "
-            f"|  {self.model}"
-        )
+        parts = [
+            "\U0001f415 Ready",
+            f"\u25a1 {self.workspace}",
+            f"{self.memory_count} memories",
+            f"{self.instinct_count} instincts",
+            f"{self.session_time}",
+            f"{self.model}",
+        ]
+        if self.tokens:
+            parts.insert(1, f"{self.tokens} tokens")
+        return "  |  ".join(parts)
 
 
 class DogMessage(Static):
@@ -38,7 +43,7 @@ class DogMessage(Static):
 
     def __init__(self, text: str):
         super().__init__()
-        self.update(f"\U0001F415 {text}")
+        self.update(f"\U0001f415 {text}")
 
 
 class PlanPanel(Container):

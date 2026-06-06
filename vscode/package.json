@@ -3,6 +3,12 @@
   "displayName": "MemoryDog",
   "description": "A memory-augmented coding agent — persistent memory, hybrid retrieval, and instincts",
   "version": "0.1.0",
+  "publisher": "memorydog-dev",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/andersonniu08-boop/MemoryDog.git"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },

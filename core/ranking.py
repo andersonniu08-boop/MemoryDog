@@ -1,4 +1,5 @@
 """Hybrid retrieval ranking formula."""
+
 import math
 
 
@@ -47,15 +48,15 @@ def score_memory(
 
     recency = math.exp(-0.01 * days)
     effective_importance = imp * dec
-    workspace_boost = 1.5 if same_ws else 1.0
+    workspace_boost = 2.0 if same_ws else 1.0
     frequency = _sigmoid(acc / mean_acc)
 
     return (
-        0.35 * vec
+        0.25 * vec
         + 0.20 * bm
         + 0.15 * recency
         + 0.15 * effective_importance
-        + 0.10 * workspace_boost
+        + 0.20 * workspace_boost
         + 0.05 * frequency
     )
 

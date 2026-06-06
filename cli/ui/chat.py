@@ -1,10 +1,12 @@
 """Chat screen — multi-pane layout with conversation, file preview, tool output."""
+
 import json
 import os
+import time
 
 from textual.containers import Container, Horizontal
 from textual.screen import Screen
-from textual.widgets import Header, Input, RichLog
+from textual.widgets import Header, Input, RichLog, Static
 
 from cli.ui.widgets import DiffPreview, PlanPanel, StatusBar, ToolOutput
 from core.provider import BaseProvider, MockProvider
@@ -42,9 +44,8 @@ class ChatScreen(Screen):
         with Horizontal(id="main-layout"):
             with Container(id="left-pane"):
                 yield PlanPanel(id="plan-panel")
-                yield RichLog(
-                    id="conversation", highlight=True, markup=True, wrap=True
-                )
+                yield RichLog(id="conversation", highlight=True, markup=True, wrap=True)
+                yield Static(id="streaming-response")
             with Container(id="right-pane"):
                 yield DiffPreview(id="file-preview")
                 yield ToolOutput(id="tool-output")
@@ -79,7 +80,7 @@ class ChatScreen(Screen):
         self._show_status(conv)
 
         self.query_one("#user-input", Input).focus()
-        self._start_time = __import__("time").time()
+        self._start_time = time.time()
         self.set_interval(30, self._update_session_time)
 
     async def on_input_submitted(self, event: Input.Submitted):
@@ -91,6 +92,7 @@ class ChatScreen(Screen):
 
         conv = self.query_one("#conversation", RichLog)
         conv.write(f"[bold blue]You:[/] {text}")
+        conv.scroll_end()
 
         if self.state is None:
             from core.agent_loop import AgentState
@@ -104,17 +106,41 @@ class ChatScreen(Screen):
             event.input.focus()
             return
 
-        from core.agent_loop import pop_status, run_turn
+        from core.agent_loop import run_turn
 
-        response_text = await run_turn(self.provider, self.state, text)
+        # Show initial status
+        conv.write("[dim italic]🐕 Running...[/]")
+        conv.scroll_end()
 
-        for msg in pop_status():
+        # Streaming response widget at bottom of left pane
+        stream_widget = self.query_one("#streaming-response", Static)
+        stream_widget.update("")
+
+        response_parts = []
+
+        def on_status(msg: str):
             conv.write(f"[dim]🐕 {msg}[/]")
+            conv.scroll_end()
 
-        self._maybe_show_plan(conv, response_text)
+        def on_token(token: str):
+            response_parts.append(token)
+            full = "".join(response_parts)
+            stream_widget.update(f"[bold green]MemoryDog:[/] {full}")
+
+        response_text = await run_turn(
+            self.provider,
+            self.state,
+            text,
+            on_status=on_status,
+            on_token=on_token,
+        )
+
+        # Clear streaming widget and show final response in conversation
+        stream_widget.update("")
         conv.write(f"[bold green]MemoryDog:[/] {response_text}")
 
         self.total_tokens += self.provider.last_tokens
+        self.status.tokens = self.total_tokens
         await self._refresh_memory_counts()
         await self._update_preview(conv)
 
@@ -147,20 +173,21 @@ class ChatScreen(Screen):
 
         if last_tool:
             try:
-                results = eval(last_tool)
-                if results:
-                    for item in results:
-                        res = item.get("result", item)
-                        if isinstance(res, dict) and res.get("success"):
-                            if "content" in res:
-                                preview = self.query_one("#file-preview", DiffPreview)
-                                preview.show_content(
-                                    "File Content",
-                                    res["content"][:1000],
-                                )
-                            elif "stdout" in res and res["stdout"].strip():
-                                output = self.query_one("#tool-output", ToolOutput)
-                                output.show_result("command", res["stdout"])
+                results = json.loads(last_tool)
+                if not isinstance(results, list):
+                    results = [results]
+                for item in results:
+                    res = item.get("result", item)
+                    if isinstance(res, dict) and res.get("success"):
+                        if "content" in res:
+                            preview = self.query_one("#file-preview", DiffPreview)
+                            preview.show_content(
+                                "File Content",
+                                res["content"][:1000],
+                            )
+                        elif "stdout" in res and res["stdout"].strip():
+                            output = self.query_one("#tool-output", ToolOutput)
+                            output.show_result("command", res["stdout"])
             except Exception:
                 pass
 
@@ -188,6 +215,6 @@ class ChatScreen(Screen):
         self._panels_visible = not self._panels_visible
 
     def _update_session_time(self):
-        elapsed = int(__import__("time").time() - self._start_time)
+        elapsed = int(time.time() - self._start_time)
         minutes = elapsed // 60
         self.status.session_time = f"{minutes}m"

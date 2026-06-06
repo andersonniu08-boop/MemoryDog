@@ -1,5 +1,7 @@
 """Tool registry and execution."""
+
 import glob as glob_mod
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -94,7 +96,14 @@ TOOL_DEFINITIONS = [
 
 
 def get_tool_definitions() -> list:
-    return TOOL_DEFINITIONS
+    """Return tool definitions in OpenAI-compatible format with type wrapper."""
+    return [
+        {
+            "type": "function",
+            "function": {k: v for k, v in t.items() if k != "type"},
+        }
+        for t in TOOL_DEFINITIONS
+    ]
 
 
 def _tool_read(params: dict) -> dict:
@@ -124,9 +133,16 @@ def _tool_edit(params: dict) -> dict:
 
 
 def _tool_bash(params: dict) -> dict:
+    workdir = params.get("workdir", ".")
+    if not os.path.isdir(workdir):
+        workdir = "."
     result = subprocess.run(
-        params["command"], shell=True, capture_output=True, text=True,
-        cwd=params.get("workdir", "."), timeout=120,
+        params["command"],
+        shell=True,
+        capture_output=True,
+        text=True,
+        cwd=workdir,
+        timeout=120,
     )
     return {
         "success": result.returncode == 0,
@@ -159,10 +175,15 @@ def _tool_grep(params: dict) -> dict:
 
 
 def _tool_memory_search(params: dict) -> dict:
+    """Search MemoryDog's persistent memory.
+
+    Full async retrieval is provided by agent_loop's _handle_memory_search
+    when called through the agent loop. This is a fallback for direct calls.
+    """
     return {
         "success": True,
         "memories": [],
-        "message": "Memory system not yet implemented",
+        "message": "Use memory_search through the agent loop for full results",
     }
 
 

@@ -9,7 +9,7 @@ CREATE TABLE memories (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     content TEXT NOT NULL,
     summary VARCHAR(512),
-    embedding VECTOR(1536),
+    embedding VECTOR(768),
     memory_type TEXT NOT NULL CHECK (memory_type IN (
         'conversation', 'design_decision', 'learned_fact',
         'user_preference', 'task_history', 'code_snippet', 'bug'

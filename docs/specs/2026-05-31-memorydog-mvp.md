@@ -254,9 +254,59 @@ ORDER BY final_score DESC
 LIMIT 5;
 ```
 
----
+### Cross-Encoder Reranking (Planned)
 
-## Instincts
+The current retrieval pipeline uses a **first-stage only** approach: hybrid vector + FTS search produces candidates, which are scored by the hand-tuned formula, and the top-5 are returned. This is fast and cheap but limited by the quality of the static ranking weights.
+
+**Planned addition:** A second-stage cross-encoder reranker that improves precision at the cost of a small latency increase.
+
+```
+Query →
+  Stage 1 (fast recall)
+    ├── pgvector HNSW cosine search → top 50
+    └── PostgreSQL FTS (GIN) → top 50
+        → UNION → dedup → formula score → top 20
+  Stage 2 (precision)
+    └── Cross-encoder reranker
+        → score each (query, candidate) pair
+        → rerank by relevance → top 5
+        → inject into prompt
+```
+
+**Why a cross-encoder?** Bi-encoder embeddings (like nomic-embed-text) compress a document into a single vector, losing nuance. A cross-encoder processes the query and candidate together, computing a joint relevance score. This is strictly more accurate for ranking than cosine similarity.
+
+**Architecture:**
+
+```python
+# Pseudocode for the reranking stage
+async def rerank(query: str, candidates: list[dict], top_k: int = 5) -> list[dict]:
+    pairs = [(query, c["content"]) for c in candidates]
+    scores = await cross_encoder.score(pairs)
+    scored = list(zip(scores, candidates))
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [c for _, c in scored[:top_k]]
+```
+
+**Candidate implementations:**
+
+| Model | Size | Latency | Quality |
+|-------|------|---------|---------|
+| BAAI/bge-reranker-v2-m3 | ~2.2GB | ~50ms/pair | High (top on MTEB) |
+| BAAI/bge-reranker-v2-minicpm-1b | ~1.1GB | ~30ms/pair | Good |
+| ms-marco-MiniLM-L-6-v2 | ~80MB | ~10ms/pair | Adequate (lightweight) |
+
+All can run locally via HuggingFace transformers or ONNX. No GPU required for batch sizes of 1-5 pairs.
+
+**Integration:** The reranker is an additive stage. The first-stage hybrid search (HNSW + FTS → formula → top 20) remains unchanged. The cross-encoder reranks only the top 20, adding ~200ms-1s of latency depending on model size. If the reranker is unavailable or too slow, the system falls back to the formula-scored top-5.
+
+**Evaluation:** Offline A/B comparison using the benchmark suite. Metric: NDCG@5 comparing formula-only vs formula + reranker rankings against human-judged relevance.
+
+### Deferred (Post-MVP)
+
+- Cross-encoder reranking
+- Learning-to-rank (train weights from user interaction data)
+- Memory selection models (classify "should this be stored?")
+- Automatic instinct generation from behavioral patterns
 
 ### Design
 
