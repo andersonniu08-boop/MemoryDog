@@ -114,7 +114,7 @@ class ChatScreen(Screen):
 
         # Streaming response widget at bottom of left pane
         stream_widget = self.query_one("#streaming-response", Static)
-        stream_widget.update("")
+        stream_widget.update("[bold green]MemoryDog:[/]")
 
         response_parts = []
 

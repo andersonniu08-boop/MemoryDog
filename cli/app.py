@@ -31,10 +31,12 @@ class MemoryDogApp(App):
     }
     #streaming-response {
         height: auto;
+        min-height: 1;
         max-height: 5;
         dock: bottom;
         margin: 0 1;
-        color: $text-success;
+        color: $text;
+        background: $surface;
     }
     #file-preview {
         height: 1fr;
