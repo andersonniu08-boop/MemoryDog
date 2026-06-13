@@ -16,8 +16,10 @@ import sys
 import traceback
 from typing import Any
 
+from core.agent_loop import AgentState
+
 # Per-workspace agent state — persists across chat turns
-_agent_states: dict[str, "AgentState"] = {}
+_agent_states: dict[str, AgentState] = {}
 
 
 def _workspace_name(workspace: str) -> str:
@@ -67,8 +69,6 @@ async def handle_chat(params: dict, msg_id: Any) -> dict:
 
     # Reuse or create agent state for this workspace
     if ws_name not in _agent_states:
-        from core.agent_loop import AgentState
-
         state = AgentState(workspace=ws_name)
         _agent_states[ws_name] = state
         try:
@@ -96,18 +96,21 @@ async def handle_chat(params: dict, msg_id: Any) -> dict:
         _notify("token", {"token": token})
 
     def on_memories(memories: list):
-        _notify("memories", {
-            "memories": [
-                {
-                    "id": str(m.get("id", "")),
-                    "content": m.get("content", ""),
-                    "summary": m.get("summary", ""),
-                    "type": m.get("memory_type", "conversation"),
-                    "importance": float(m.get("importance", 0.5)),
-                }
-                for m in memories
-            ]
-        })
+        _notify(
+            "memories",
+            {
+                "memories": [
+                    {
+                        "id": str(m.get("id", "")),
+                        "content": m.get("content", ""),
+                        "summary": m.get("summary", ""),
+                        "type": m.get("memory_type", "conversation"),
+                        "importance": float(m.get("importance", 0.5)),
+                    }
+                    for m in memories
+                ]
+            },
+        )
 
     try:
         response = await run_turn(
@@ -128,8 +131,6 @@ async def handle_reset_chat(params: dict) -> dict:
     workspace = params.get("workspace", ".")
     ws_name = _workspace_name(workspace)
     if ws_name in _agent_states:
-        from core.agent_loop import AgentState
-
         _agent_states[ws_name] = AgentState(workspace=ws_name)
     return {"success": True}
 
@@ -213,8 +214,9 @@ async def handle_get_status(params: dict) -> dict:
 
     try:
         config = load_config()
-        result["provider"] = config.provider.model.split("/")[0] if "/" in config.provider.model else config.provider.model
-        result["model"] = config.provider.model
+        model = config.provider.model
+        result["provider"] = model.split("/")[0] if "/" in model else model
+        result["model"] = model
     except Exception:
         pass
 
@@ -256,7 +258,7 @@ async def handle_set_config(params: dict) -> dict:
 
 async def handle_check_health() -> dict:
     """Run diagnostics: API key, database, embeddings.
-    
+
     Skips provider validation if API key is missing — no point hitting the API.
     """
     result = {
@@ -286,7 +288,7 @@ async def handle_check_health() -> dict:
                 api_base=config.provider.api_base or None,
             )
             err = provider.check_connection()
-            result["api_key"] = "ok" if err is None else f"rejected"
+            result["api_key"] = "ok" if err is None else "rejected"
     except Exception as e:
         result["api_key"] = f"error: {e}"
 
@@ -312,9 +314,7 @@ async def handle_check_health() -> dict:
         result["embedding"] = f"error: {e}"
 
     result["all_ok"] = (
-        result["api_key"] == "ok"
-        and result["database"] == "ok"
-        and result["embedding"] == "ok"
+        result["api_key"] == "ok" and result["database"] == "ok" and result["embedding"] == "ok"
     )
 
     return result

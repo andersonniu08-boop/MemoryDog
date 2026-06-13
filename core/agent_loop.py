@@ -284,7 +284,12 @@ def _load_and_match_instincts(query: str, workspace: str) -> list:
     return [inst for inst, score in matched]
 
 
-async def _retrieve_context(query: str, workspace: str, instincts: list, on_status=None) -> tuple[str, list[dict]]:
+async def _retrieve_context(
+    query: str,
+    workspace: str,
+    instincts: list,
+    on_status=None,
+) -> tuple[str, list[dict]]:
     from core.instincts import get_retrieval_bias
     from core.memory import count_memories, generate_embedding
     from core.retrieval import log_retrieval_access, retrieve_memories

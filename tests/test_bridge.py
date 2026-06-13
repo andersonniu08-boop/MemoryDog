@@ -28,9 +28,10 @@ class TestRpcNotifications:
     """Tests for JSON-RPC notification formatting (no I/O needed)."""
 
     def test_notify_format(self):
-        from core.bridge import _notify
         import io
         import sys
+
+        from core.bridge import _notify
 
         old = sys.stdout
         buf = io.StringIO()
@@ -47,9 +48,10 @@ class TestRpcNotifications:
         assert result["params"]["message"] == "hello"
 
     def test_response_format(self):
-        from core.bridge import _write_response
         import io
         import sys
+
+        from core.bridge import _write_response
 
         old = sys.stdout
         buf = io.StringIO()
@@ -65,9 +67,10 @@ class TestRpcNotifications:
         assert result["result"]["content"] == "hello"
 
     def test_error_format(self):
-        from core.bridge import _write_error
         import io
         import sys
+
+        from core.bridge import _write_error
 
         old = sys.stdout
         buf = io.StringIO()
@@ -122,7 +125,6 @@ class TestAgentStatePersistence:
     @pytest.mark.asyncio
     async def test_state_created_and_reused(self):
         from core.bridge import _agent_states, _workspace_name, handle_chat
-        from core.provider import MockProvider
 
         # Clear state
         _agent_states.clear()
@@ -130,7 +132,6 @@ class TestAgentStatePersistence:
         ws = _workspace_name("test-persist")
 
         # Override the provider to avoid real LLM calls
-        import core.bridge as bridge_mod
         import core.agent_loop as agent_mod
 
         original_run = agent_mod.run_turn
@@ -155,8 +156,7 @@ class TestAgentStatePersistence:
 
     @pytest.mark.asyncio
     async def test_reset_clears_state(self):
-        from core.bridge import _agent_states, _workspace_name, handle_chat, handle_reset_chat
-        from core.provider import MockProvider
+        from core.bridge import _agent_states, handle_chat, handle_reset_chat
 
         _agent_states.clear()
 

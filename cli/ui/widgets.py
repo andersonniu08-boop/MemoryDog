@@ -1,6 +1,5 @@
 """Custom widgets for MemoryDog TUI."""
 
-from textual.containers import Container
 from textual.reactive import reactive
 from textual.widgets import RichLog, Static
 
