@@ -319,6 +319,7 @@ async function handleChat(session: Session, text: string) {
       session.workspace,
       (statusMsg: string) => sendToChat(session, { type: "status", text: statusMsg }),
       (token: string) => sendToChat(session, { type: "token", token }),
+      (state: string, detail: string) => sendToChat(session, { type: "state", state, detail }),
       (memories: any[]) => {
         sendToChat(session, { type: "memories_retrieved", memories });
         session.lastRetrievedMemoryIds = memories.map((m: any) => m.id).filter(Boolean);
@@ -415,14 +416,17 @@ async function configureApiKey() {
     placeHolder: "sk-...",
     value: vscode.workspace.getConfiguration("memorydog").get("apiKey") || "",
   });
-  if (apiKey !== undefined) {
-    await vscode.workspace.getConfiguration("memorydog").update("apiKey", apiKey, vscode.ConfigurationTarget.Global);
+  const trimmed = (apiKey || "").trim();
+  if (apiKey !== undefined && trimmed) {
+    await vscode.workspace.getConfiguration("memorydog").update("apiKey", trimmed, vscode.ConfigurationTarget.Global);
     try {
-      await bridge.setConfig(apiKey);
+      await bridge.setConfig(trimmed);
       vscode.window.showInformationMessage("🐕 API key saved!");
     } catch {
       vscode.window.showInformationMessage("🐕 API key saved (restart bridge to apply)");
     }
+  } else if (apiKey !== undefined) {
+    vscode.window.showWarningMessage("API key cannot be empty.");
   }
 }
 
@@ -515,6 +519,8 @@ async function startBridgeAsync() {
     if (apiKey) await bridge.setConfig(apiKey);
     refreshStatusBar();
   } catch (e) {
+    statusBarItem.text = "$(error) MemoryDog";
+    statusBarItem.tooltip = `Bridge failed to start: ${e}. Click to retry.`;
     console.error("Failed to start MemoryDog bridge:", e);
   }
 }

@@ -309,10 +309,17 @@
         break;
       case "status":
         { const m=msg.text.toLowerCase();
-          if (m.includes("fetching")||m.includes("sniffing")) setStatus("sniffing", msg.text);
-          else if (m.includes("thinking")) setStatus("thinking", msg.text);
-          else if (m.includes("executing")||m.includes("running")||m.includes("tool")) setStatus("running", msg.text);
-          else if (m.includes("found")||m.includes("matched")||m.includes("learned")||m.includes("saving")) setStatus("sniffing", msg.text);
+          if (m.includes("found")||m.includes("matched")||m.includes("learned")) setStatus("sniffing", msg.text);
+        }
+        break;
+      case "state":
+        { const s = msg.state;
+          if (s === "RetrievingMemories") setStatus("sniffing", msg.detail || "Fetching memories…");
+          else if (s === "Thinking") setStatus("thinking", msg.detail || "Thinking…");
+          else if (s === "RunningTools") setStatus("running", msg.detail || "Running tools…");
+          else if (s === "Success") { setStatus("success", "Done"); setTimeout(() => setStatus("idle", "Ready"), 1000); }
+          else if (s === "Error") { setStatus("error", msg.detail || "Error"); setTimeout(() => setStatus("idle", "Ready"), 2000); }
+          else if (s === "Ready") setStatus("idle", "Ready");
         }
         break;
       case "token":

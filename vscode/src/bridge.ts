@@ -55,6 +55,15 @@ export interface InstinctDef {
   retrieval_bias: string[];
 }
 
+export type BridgeAgentState =
+  | "Ready"
+  | "Thinking"
+  | "RetrievingMemories"
+  | "RunningTools"
+  | "ExtractingMemories"
+  | "Success"
+  | "Error";
+
 export class MemoryDogBridge {
   private process: cp.ChildProcess | null = null;
   private nextId = 1;
@@ -63,6 +72,7 @@ export class MemoryDogBridge {
   private onStatus: ((msg: string) => void) | null = null;
   private onToken: ((token: string) => void) | null = null;
   private onMemories: ((memories: MemoryRecord[]) => void) | null = null;
+  private onState: ((state: BridgeAgentState, detail: string) => void) | null = null;
   private outputChannel: vscode.OutputChannel;
 
   constructor() {
@@ -168,10 +178,12 @@ export class MemoryDogBridge {
     workspace: string,
     onStatus: (msg: string) => void,
     onToken: (token: string) => void,
+    onState?: (state: BridgeAgentState, detail: string) => void,
     onMemories?: (memories: MemoryRecord[]) => void
   ): Promise<string> {
     this.onStatus = onStatus;
     this.onToken = onToken;
+    this.onState = onState || null;
     this.onMemories = onMemories || null;
 
     try {
@@ -183,6 +195,7 @@ export class MemoryDogBridge {
     } finally {
       this.onStatus = null;
       this.onToken = null;
+      this.onState = null;
       this.onMemories = null;
     }
   }
@@ -254,6 +267,8 @@ export class MemoryDogBridge {
         this.onToken(notif.params.token as string);
       } else if (notif.method === "memories" && this.onMemories) {
         this.onMemories((notif.params.memories as MemoryRecord[]) || []);
+      } else if (notif.method === "state" && this.onState) {
+        this.onState(notif.params.state as BridgeAgentState, notif.params.detail as string);
       }
       return;
     }

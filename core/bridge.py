@@ -3,7 +3,8 @@
 The extension spawns `dog serve` as a subprocess and communicates via
 newline-delimited JSON-RPC 2.0 messages.
 
-Streaming chat uses JSON-RPC notifications:
+Agent state transitions are sent as notifications:
+  → {"jsonrpc":"2.0","method":"state","params":{"state":"Thinking","from":"Ready"}}
   → {"jsonrpc":"2.0","method":"status","params":{"message":"..."}}
   → {"jsonrpc":"2.0","method":"token","params":{"token":"..."}}
   ← {"jsonrpc":"2.0","id":1,"result":{"content":"..."}}
@@ -14,12 +15,34 @@ import json
 import os
 import sys
 import traceback
+from enum import StrEnum
 from typing import Any
 
 from core.agent_loop import AgentState
 
 # Per-workspace agent state — persists across chat turns
 _agent_states: dict[str, AgentState] = {}
+_agent_locks: dict[str, asyncio.Lock] = {}
+
+
+class BridgeAgentState(StrEnum):
+    """Structured state for the agent lifecycle.
+    
+    These flow through the bridge as RPC notifications so the extension
+    can react programmatically (disable input, show status, drive animations).
+    """
+    READY = "Ready"
+    THINKING = "Thinking"
+    RETRIEVING_MEMORIES = "RetrievingMemories"
+    RUNNING_TOOLS = "RunningTools"
+    EXTRACTING_MEMORIES = "ExtractingMemories"
+    SUCCESS = "Success"
+    ERROR = "Error"
+
+
+def _state_transition(new_state: BridgeAgentState, detail: str = ""):
+    """Notify the extension of an agent state transition."""
+    _notify("state", {"state": new_state.value, "detail": detail})
 
 
 def _workspace_name(workspace: str) -> str:
@@ -67,16 +90,21 @@ async def handle_chat(params: dict, msg_id: Any) -> dict:
 
     ws_name = _workspace_name(workspace)
 
-    # Reuse or create agent state for this workspace
-    if ws_name not in _agent_states:
-        state = AgentState(workspace=ws_name)
-        _agent_states[ws_name] = state
-        try:
-            await init_agent(workspace)
-        except Exception:
-            pass  # DB might not be available, continue
-    else:
-        state = _agent_states[ws_name]
+    # Lock to prevent concurrent chat calls corrupting shared state
+    if ws_name not in _agent_locks:
+        _agent_locks[ws_name] = asyncio.Lock()
+
+    async with _agent_locks[ws_name]:
+        # Reuse or create agent state for this workspace
+        if ws_name not in _agent_states:
+            state = AgentState(workspace=ws_name)
+            _agent_states[ws_name] = state
+            try:
+                await init_agent(workspace)
+            except Exception:
+                pass
+        else:
+            state = _agent_states[ws_name]
 
     from core.config import load_config
 
@@ -91,6 +119,16 @@ async def handle_chat(params: dict, msg_id: Any) -> dict:
 
     def on_status(msg: str):
         _notify("status", {"message": msg})
+        # Map unstructured status strings to structured states
+        m = msg.lower()
+        if m.startswith("fetching"):
+            _state_transition(BridgeAgentState.RETRIEVING_MEMORIES, msg)
+        elif m.startswith("thinking"):
+            _state_transition(BridgeAgentState.THINKING, msg)
+        elif m.startswith("executing"):
+            _state_transition(BridgeAgentState.RUNNING_TOOLS, msg)
+        elif m.startswith("extracting") or m.startswith("saving"):
+            _state_transition(BridgeAgentState.EXTRACTING_MEMORIES, msg)
 
     def on_token(token: str):
         _notify("token", {"token": token})
@@ -121,8 +159,10 @@ async def handle_chat(params: dict, msg_id: Any) -> dict:
             on_token=on_token,
             on_memories=on_memories,
         )
+        _state_transition(BridgeAgentState.SUCCESS, "Done")
         return {"content": response}
     except Exception as e:
+        _state_transition(BridgeAgentState.ERROR, str(e))
         return {"error": str(e), "content": ""}
 
 
@@ -210,6 +250,7 @@ async def handle_get_status(params: dict) -> dict:
         "instinct_count": 0,
         "provider": "unknown",
         "model": "unknown",
+        "state": BridgeAgentState.READY.value,
     }
 
     try:
@@ -247,10 +288,10 @@ async def handle_set_config(params: dict) -> dict:
 
         config = Config()
 
-    if "api_key" in params and params["api_key"]:
-        config.provider.api_key = params["api_key"]
-    if "model" in params and params["model"]:
-        config.provider.model = params["model"]
+    if "api_key" in params and params["api_key"] and params["api_key"].strip():
+        config.provider.api_key = params["api_key"].strip()
+    if "model" in params and params["model"] and params["model"].strip():
+        config.provider.model = params["model"].strip()
 
     save_config(config)
     return {"success": True}
