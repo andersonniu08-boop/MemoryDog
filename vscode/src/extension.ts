@@ -154,6 +154,9 @@ function openSession(context: vscode.ExtensionContext, sessionId: string, name?:
         case "setConfig":
           await handleSetConfig(session!, msg);
           break;
+        case "showSetup":
+          sendToChat(session!, { type: "setup" });
+          break;
       }
     });
 
@@ -270,6 +273,22 @@ async function handleSetConfig(session: Session, msg: any) {
       sendToChat(session, { type: "setup_error", text: `Failed to start bridge: ${e.message}` });
       return;
     }
+  }
+
+  // Validate the API key against the provider before showing chat
+  try {
+    const health = await bridge.checkHealth();
+    if (health.api_key !== "ok") {
+      const reason = health.api_key === "rejected" ? "API key rejected by provider. Check your key."
+        : health.api_key === "missing" ? "No API key configured."
+        : health.api_key === "invalid" ? "API key too short."
+        : `API key validation failed: ${health.api_key}`;
+      sendToChat(session, { type: "setup_error", text: reason });
+      return;
+    }
+  } catch (e: any) {
+    // Health check timed out or bridge not responding — let user try anyway
+    console.warn("Health check failed:", e.message);
   }
 
   sendToChat(session, { type: "ready" });

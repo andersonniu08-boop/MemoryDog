@@ -95,10 +95,11 @@
 <!-- ═══════════ Status Bar with Dog ═══════════ -->
 <div class="status-bar" id="statusBar">
   <div class="dog-sprite" id="dogSprite">🐕</div>
-  <div>
+  <div style="flex:1">
     <div class="status-text" id="statusText">Starting…</div>
     <div class="status-sub" id="statusSub"></div>
   </div>
+  <span id="settingsBtn" style="cursor:pointer;font-size:16px;padding:4px 8px;opacity:0.6" title="Change API key">⚙</span>
 </div>
 
 <!-- ═══════════ Conversation ═══════════ -->
@@ -290,6 +291,11 @@
   userInput.addEventListener("input", () => {
     userInput.style.height = "auto";
     userInput.style.height = Math.min(userInput.scrollHeight, 200) + "px";
+  });
+
+  // Settings button — re-open setup screen to change API key
+  document.getElementById("settingsBtn").addEventListener("click", () => {
+    vscode.postMessage({ type: "showSetup" });
   });
 
   // ═══════════════════════════════════════════════════
