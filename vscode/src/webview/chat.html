@@ -60,7 +60,6 @@
   .message code { font-family:'Cascadia Code',monospace; font-size:12px; background:rgba(255,255,255,0.1); padding:1px 4px; border-radius:3px; }
   .message pre code { background:none; padding:0; }
   .streaming { opacity:0.85; }
-  .tool-call { font-size:12px; color:var(--tool-color); padding:4px 8px; background:rgba(78,201,176,0.1); border-left:2px solid var(--tool-color); border-radius:4px; align-self:flex-start; font-family:monospace; max-width:75%; }
 
   /* ═══════════ Input ═══════════ */
   .input-area {
@@ -249,12 +248,6 @@
     conversation.appendChild(el); scroll();
   }
 
-  function addTool(text) {
-    const el = document.createElement("div");
-    el.className = "tool-call"; el.textContent = "🔧 " + text;
-    conversation.appendChild(el); scroll();
-  }
-
   function startStream() {
     if (streamingEl) conversation.removeChild(streamingEl);
     streamingEl = document.createElement("div");
@@ -332,9 +325,6 @@
         setStatus("success", "Done");
         setTimeout(() => setStatus("idle", "Ready"), 1000);
         break;
-      case "tool":
-        addTool(msg.text);
-        break;
       case "error":
         finishStream();
         const errEl=document.createElement("div");
@@ -357,9 +347,6 @@
         break;
       case "setup_error":
         showSetupError(msg.text);
-        break;
-      case "dog_state":
-        setStatus(msg.state, msg.label);
         break;
     }
   });

@@ -318,19 +318,36 @@ async function handleChat(session: Session, text: string) {
       text,
       session.workspace,
       (statusMsg: string) => sendToChat(session, { type: "status", text: statusMsg }),
-      (token: string) => sendToChat(session, { type: "token", token }),
+      (token: string) => {
+        const cleaned = filterToken(token);
+        if (cleaned) sendToChat(session, { type: "token", token: cleaned });
+      },
       (state: string, detail: string) => sendToChat(session, { type: "state", state, detail }),
       (memories: any[]) => {
-        sendToChat(session, { type: "memories_retrieved", memories });
         session.lastRetrievedMemoryIds = memories.map((m: any) => m.id).filter(Boolean);
       }
     );
 
-    sendToChat(session, { type: "response", content: response });
+    if (response.startsWith("❌")) {
+      sendToChat(session, { type: "error", text: response.replace(/^❌\s*/, "") });
+    } else {
+      sendToChat(session, { type: "response", content: response });
+    }
     refreshStatusBar();
   } catch (e: any) {
     sendToChat(session, { type: "error", text: `Error: ${e.message}` });
   }
+}
+
+/** Strip tool-call XML/JSON artifacts from streaming tokens. */
+function filterToken(token: string): string {
+  let t = token;
+  t = t.replace(/<invoke[^>]*\/>/g, "");
+  t = t.replace(/<invoke[\s\S]*?<\/invoke>/g, "");
+  t = t.replace(/<tool_calls>[\s\S]*?<\/tool_calls>/g, "");
+  t = t.replace(/<parameter[\s\S]*?<\/parameter>/g, "");
+  t = t.replace(/\{"name"\s*:\s*"[^"]*",\s*"arguments"\s*:\s*\{[^}]*\}\}/g, "");
+  return t;
 }
 
 // ═══════════════════════════════════════════════════════════
