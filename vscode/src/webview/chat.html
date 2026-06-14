@@ -297,12 +297,18 @@
       { name: "phi4", desc: "Microsoft 14B, full-size" },
     ];
     const cloudModels = [
-      { name: "deepseek/deepseek-chat", desc: "DeepSeek API" },
-      { name: "deepseek/deepseek-reasoner", desc: "DeepSeek R1 reasoning" },
+      { name: "deepseek/deepseek-chat", desc: "DeepSeek V3" },
+      { name: "deepseek/deepseek-reasoner", desc: "DeepSeek R1" },
       { name: "openai/gpt-4o", desc: "OpenAI GPT-4o" },
       { name: "openai/gpt-4o-mini", desc: "OpenAI, cheap" },
       { name: "anthropic/claude-sonnet-4-20250514", desc: "Claude Sonnet 4" },
-      { name: "openrouter/deepseek/deepseek-chat", desc: "OpenRouter" },
+      { name: "anthropic/claude-haiku-4-20250514", desc: "Claude Haiku" },
+      { name: "moonshot/kimi-k2-0905", desc: "Kimi K2 — Moonshot AI" },
+      { name: "openrouter/deepseek/deepseek-chat", desc: "OpenRouter → DeepSeek" },
+      { name: "openrouter/anthropic/claude-sonnet-4", desc: "OpenRouter → Claude" },
+      { name: "openrouter/openai/gpt-4o", desc: "OpenRouter → GPT-4o" },
+      { name: "openrouter/google/gemini-2.5-pro", desc: "OpenRouter → Gemini" },
+      { name: "openrouter/moonshotai/kimi-k2", desc: "OpenRouter → Kimi" },
     ];
     let installed = [];
     try {
@@ -344,7 +350,7 @@
         <button id="saveConfigBtn">Connect</button>
       </div>
       <div id="healthStatus"></div>
-      <p style="margin-top:12px;font-size:11px;color:var(--muted)">✅ = installed  ⬇ = pull with ollama  ☁ = needs API key</p>
+      <p style="margin-top:12px;font-size:11px;color:var(--muted)">✅ = installed  ⬇ = ollama pull  ☁ = needs API key  🔑 OpenRouter = one key, all models</p>
     </div>`;
 
     const sel = document.getElementById("modelSelect");

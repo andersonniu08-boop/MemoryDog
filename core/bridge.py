@@ -309,6 +309,11 @@ async def handle_set_config(params: dict) -> dict:
         config.provider.api_key = params["api_key"].strip()
     if "model" in params and params["model"] and params["model"].strip():
         config.provider.model = params["model"].strip()
+        # Auto-detect provider: models with '/' use LiteLLM, others use Ollama
+        if "/" in params["model"]:
+            config.provider.provider_type = "litellm"
+        else:
+            config.provider.provider_type = "ollama"
 
     save_config(config)
     return {"success": True}
