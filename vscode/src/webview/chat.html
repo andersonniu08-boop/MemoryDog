@@ -286,23 +286,42 @@
   });
 
   async function showSetup(){
-    // Fetch installed models from Ollama
-    let modelOpts = '<option value="phi4-mini">phi4-mini</option>';
+    const popular = [
+      { name: "phi4-mini", desc: "Microsoft 3.8B — fast, local-friendly" },
+      { name: "llama3.2", desc: "Meta 3.2B — lightweight generalist" },
+      { name: "qwen2.5:3b", desc: "Alibaba 3B — efficient, multilingual" },
+      { name: "gemma3:4b", desc: "Google 4B — compact performer" },
+      { name: "mistral", desc: "Mistral 7B — solid general-purpose" },
+      { name: "deepseek-r1:7b", desc: "DeepSeek 7B — reasoning-oriented" },
+      { name: "codellama:7b", desc: "Meta 7B — code-focused" },
+      { name: "phi4", desc: "Microsoft 14B — full-size (needs RAM)" },
+    ];
+    let installed = [];
     try {
       const resp = await fetch('http://localhost:11434/api/tags');
-      const data = await resp.json();
-      const names = (data.models || []).map(m => m.name.replace(/:latest$/, ''));
-      modelOpts = names.map(n => `<option value="${n}">${n}</option>`).join('');
-      if (!names.includes('phi4-mini')) modelOpts += '<option value="phi4-mini">phi4-mini (pull first)</option>';
+      installed = ((await resp.json()).models || []).map(m => m.name.replace(/:latest$/, ''));
     } catch(e) {}
+
+    let opts = '';
+    for (const p of popular) {
+      const isInstalled = installed.includes(p.name);
+      const badge = isInstalled ? ' ✅' : ' (pull)';
+      opts += `<option value="${p.name}">${p.name}${badge} — ${p.desc}</option>`;
+    }
+    // Add any installed models not in the popular list
+    for (const n of installed) {
+      if (!popular.find(p => p.name === n)) {
+        opts += `<option value="${n}">${n} ✅ — installed</option>`;
+      }
+    }
 
     conv.innerHTML = `<div class="welcome">
       <h2>🐕 MemoryDog</h2>
       <p>A memory-augmented coding agent.</p>
       <div class="setup-form">
-        <label style="font-size:12px;text-align:left">Model</label>
-        <select id="modelSelect" style="background:var(--surface);border:1px solid var(--border);color:var(--fg);padding:8px 12px;border-radius:6px;font-size:13px;outline:none">${modelOpts}<option value="__custom__">Custom…</option></select>
-        <input type="text" id="customModel" placeholder="e.g. llama3.2, deepseek/deepseek-chat" style="display:none;background:var(--surface);border:1px solid var(--border);color:var(--fg);padding:8px 12px;border-radius:6px;font-size:13px;outline:none" />
+        <label style="font-size:12px;text-align:left">Model — choose a local model or enter any Ollama/LiteLLM model name</label>
+        <select id="modelSelect" style="background:var(--surface);border:1px solid var(--border);color:var(--fg);padding:8px 12px;border-radius:6px;font-size:13px;outline:none">${opts}</select>
+        <input type="text" id="customModel" placeholder="Or type any model name (e.g. llama3.2, deepseek/deepseek-chat)" style="background:var(--surface);border:1px solid var(--border);color:var(--fg);padding:8px 12px;border-radius:6px;font-size:13px;outline:none" />
         <input type="password" id="apiKeyInput" placeholder="API key (for cloud models only)" style="background:var(--surface);border:1px solid var(--border);color:var(--fg);padding:8px 12px;border-radius:6px;font-size:13px;outline:none" />
         <button id="saveConfigBtn">Connect</button>
       </div>
@@ -311,13 +330,10 @@
 
     const sel = document.getElementById("modelSelect");
     const custom = document.getElementById("customModel");
-    sel.addEventListener("change", () => {
-      custom.style.display = sel.value === "__custom__" ? "block" : "none";
-    });
     document.getElementById("saveConfigBtn").addEventListener("click", () => {
-      const m = sel.value === "__custom__" ? custom.value.trim() : sel.value;
+      const m = custom.value.trim() || sel.value;
       const k = document.getElementById("apiKeyInput").value.trim();
-      vscode.postMessage({ type: "setConfig", apiKey: k, model: m || sel.value });
+      vscode.postMessage({ type: "setConfig", apiKey: k, model: m || "phi4-mini" });
       const btn = document.getElementById("saveConfigBtn");
       btn.textContent = "Connecting…"; btn.disabled = true;
     });
