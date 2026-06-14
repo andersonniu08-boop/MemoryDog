@@ -286,15 +286,23 @@
   });
 
   async function showSetup(){
-    const popular = [
-      { name: "phi4-mini", desc: "Microsoft 3.8B — fast, local-friendly" },
-      { name: "llama3.2", desc: "Meta 3.2B — lightweight generalist" },
-      { name: "qwen2.5:3b", desc: "Alibaba 3B — efficient, multilingual" },
-      { name: "gemma3:4b", desc: "Google 4B — compact performer" },
-      { name: "mistral", desc: "Mistral 7B — solid general-purpose" },
-      { name: "deepseek-r1:7b", desc: "DeepSeek 7B — reasoning-oriented" },
-      { name: "codellama:7b", desc: "Meta 7B — code-focused" },
-      { name: "phi4", desc: "Microsoft 14B — full-size (needs RAM)" },
+    const localModels = [
+      { name: "phi4-mini", desc: "Microsoft 3.8B, fast" },
+      { name: "llama3.2", desc: "Meta 3.2B, lightweight" },
+      { name: "qwen2.5:3b", desc: "Alibaba 3B, multilingual" },
+      { name: "gemma3:4b", desc: "Google 4B, compact" },
+      { name: "mistral", desc: "Mistral 7B, general-purpose" },
+      { name: "deepseek-r1:7b", desc: "DeepSeek 7B, reasoning" },
+      { name: "codellama:7b", desc: "Meta 7B, code-focused" },
+      { name: "phi4", desc: "Microsoft 14B, full-size" },
+    ];
+    const cloudModels = [
+      { name: "deepseek/deepseek-chat", desc: "DeepSeek API" },
+      { name: "deepseek/deepseek-reasoner", desc: "DeepSeek R1 reasoning" },
+      { name: "openai/gpt-4o", desc: "OpenAI GPT-4o" },
+      { name: "openai/gpt-4o-mini", desc: "OpenAI, cheap" },
+      { name: "anthropic/claude-sonnet-4-20250514", desc: "Claude Sonnet 4" },
+      { name: "openrouter/deepseek/deepseek-chat", desc: "OpenRouter" },
     ];
     let installed = [];
     try {
@@ -302,36 +310,62 @@
       installed = ((await resp.json()).models || []).map(m => m.name.replace(/:latest$/, ''));
     } catch(e) {}
 
-    let opts = '';
-    for (const p of popular) {
-      const isInstalled = installed.includes(p.name);
-      const badge = isInstalled ? ' ✅' : ' (pull)';
-      opts += `<option value="${p.name}">${p.name}${badge} — ${p.desc}</option>`;
+    let localOpts = '';
+    for (const p of localModels) {
+      const ok = installed.includes(p.name);
+      localOpts += `<option value="${p.name}">${ok ? "✅" : "⬇"} ${p.name} — ${p.desc}${ok ? "" : " (ollama pull)"}</option>`;
     }
-    // Add any installed models not in the popular list
+    // Add any extra installed local models not in our list
     for (const n of installed) {
-      if (!popular.find(p => p.name === n)) {
-        opts += `<option value="${n}">${n} ✅ — installed</option>`;
+      if (!localModels.find(p => p.name === n)) {
+        localOpts += `<option value="${n}">✅ ${n} — installed</option>`;
       }
+    }
+
+    let cloudOpts = '';
+    for (const c of cloudModels) {
+      cloudOpts += `<option value="${c.name}">☁ ${c.name} — ${c.desc}</option>`;
     }
 
     conv.innerHTML = `<div class="welcome">
       <h2>🐕 MemoryDog</h2>
-      <p>A memory-augmented coding agent running locally via Ollama.</p>
       <div class="setup-form">
-        <select id="modelSelect" style="background:var(--surface);border:1px solid var(--accent);color:var(--fg);padding:10px 14px;border-radius:6px;font-size:14px;outline:none">${opts}</select>
+        <select id="modelSelect" style="background:var(--surface);border:1px solid var(--accent);color:var(--fg);padding:10px 14px;border-radius:6px;font-size:14px;outline:none">
+          <optgroup label="🖥 Local (Ollama)">
+            ${localOpts}
+          </optgroup>
+          <optgroup label="☁ Cloud (API key)">
+            ${cloudOpts}
+          </optgroup>
+        </select>
+        <div id="apiKeyGroup" style="display:none">
+          <input type="password" id="apiKeyInput" placeholder="Enter your API key (sk-…)" style="background:var(--surface);border:1px solid var(--border);color:var(--fg);padding:10px 14px;border-radius:6px;font-size:14px;outline:none;width:100%" />
+        </div>
         <button id="saveConfigBtn">Connect</button>
       </div>
       <div id="healthStatus"></div>
-      <p style="margin-top:12px;font-size:11px;color:var(--muted)">No API key required — models run locally</p>
+      <p style="margin-top:12px;font-size:11px;color:var(--muted)">✅ = installed  ⬇ = pull with ollama  ☁ = needs API key</p>
     </div>`;
 
+    const sel = document.getElementById("modelSelect");
+    const apiKeyGroup = document.getElementById("apiKeyGroup");
+    const isCloud = (v) => cloudModels.some(m => m.name === v);
+    sel.addEventListener("change", () => {
+      apiKeyGroup.style.display = isCloud(sel.value) ? "block" : "none";
+    });
+
     document.getElementById("saveConfigBtn").addEventListener("click", () => {
-      const m = document.getElementById("modelSelect").value;
-      vscode.postMessage({ type: "setConfig", apiKey: "", model: m });
+      const m = sel.value;
+      const k = isCloud(m) ? (document.getElementById("apiKeyInput")?.value?.trim() || "") : "";
+      if (isCloud(m) && !k) {
+        showSetupError("API key required for cloud models.");
+        return;
+      }
+      vscode.postMessage({ type: "setConfig", apiKey: k, model: m });
       const btn = document.getElementById("saveConfigBtn");
       btn.textContent = "Connecting…"; btn.disabled = true;
     });
+  }
   }
   function showHealth(h){const el=document.getElementById("healthStatus");if(!el)return;const ic=s=>s==="ok"?"✅":s==="missing"?"⚠":"❌";const lb=s=>s==="ok"?"Connected":s==="missing"?"Not set":s==="unavailable"?"Unavailable":s==="rejected"?"Rejected":"Unknown";el.innerHTML='<div class="health-check">'+['api_key','database','embedding'].map(k=>`<div>${ic(h[k])} ${k==="api_key"?"API Key":k==="database"?"Database":"Embeddings"}: ${lb(h[k])}</div>`).join("")+'</div>';}
   function showSetupError(msg){const el=document.getElementById("healthStatus");if(el)el.innerHTML='<div class="health-check" style="color:#f44747;">❌ '+esc(msg)+'</div>';const btn=document.getElementById("saveConfigBtn");if(btn){btn.textContent="Retry";btn.disabled=false;}}
