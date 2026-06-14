@@ -117,7 +117,7 @@ async def test_chat_screen_exists():
 
 def test_config_defaults():
     config = Config()
-    assert "deepseek" in config.provider.model
+    assert "phi4-mini" in config.provider.model
     assert "nomic-embed-text" in config.embedding.model
     assert config.database.url
 
@@ -129,7 +129,7 @@ def test_config_load_creates_file(tmp_path, monkeypatch):
     monkeypatch.setattr(config_module, "CONFIG_PATH", tmp_path / ".memorydog" / "config.toml")
 
     cfg = config_module.create_default_config()
-    assert "deepseek" in cfg.provider.model
+    assert "phi4-mini" in cfg.provider.model
     assert (tmp_path / ".memorydog" / "config.toml").exists()
 
 

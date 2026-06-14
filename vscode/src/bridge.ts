@@ -259,6 +259,12 @@ export class MemoryDogBridge {
     return result as unknown as { provider_type: string; model: string };
   }
 
+  /** Check if the configured Ollama model exists, pull if missing. */
+  async ensureModel(): Promise<{ needed: boolean; pulling?: boolean; message: string }> {
+    const result = await this.call("ensure_model", {});
+    return result as unknown as { needed: boolean; pulling?: boolean; message: string };
+  }
+
   /** Process buffered stdout lines. */
   private processBuffer(): void {
     const lines = this.buffer.split("\n");

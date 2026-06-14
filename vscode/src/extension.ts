@@ -293,21 +293,44 @@ async function handleSetConfig(session: Session, msg: any) {
     }
   }
 
-  // Validate the API key against the provider before showing chat
+  // Auto-pull local model if needed (Ollama default)
+  try {
+    const info = await bridge.currentModel();
+    if (info.provider_type === "ollama") {
+      const ensure = await bridge.ensureModel();
+      if (ensure.needed && ensure.pulling) {
+        sendToChat(session, { type: "health", api_key: "ok", database: "ok", embedding: "ok" });
+        sendToChat(session, { type: "setup_error", text: `Model "${info.model}" not found. Auto-pulling... This may take a few minutes. Check /status for progress.` });
+        bridge.pullModel(info.model).catch(() => {});
+        setTimeout(() => sendToChat(session, { type: "ready" }), 2000);
+        refreshStatusBar();
+        return;
+      }
+    }
+  } catch { /* model check optional */ }
+
+  // Validate connectivity
   try {
     const health = await bridge.checkHealth();
-    if (health.api_key !== "ok") {
-      const reason = health.api_key === "rejected" ? "API key rejected by provider. Check your key."
-        : health.api_key === "missing" ? "No API key configured."
-        : health.api_key === "invalid" ? "API key too short."
-        : `API key validation failed: ${health.api_key}`;
-      sendToChat(session, { type: "setup_error", text: reason });
-      return;
+    const info = await bridge.currentModel().catch(() => ({ provider_type: "litellm" }));
+    if (info.provider_type === "ollama") {
+      // Ollama: only verify DB + embeddings, skip API key
+      if (health.embedding !== "ok") {
+        sendToChat(session, { type: "setup_error", text: "Ollama not running. Start with: ollama serve" });
+        return;
+      }
+    } else {
+      // Cloud provider: verify API key
+      if (health.api_key !== "ok") {
+        const reason = health.api_key === "rejected" ? "API key rejected."
+          : health.api_key === "missing" ? "No API key configured."
+          : health.api_key === "invalid" ? "API key too short."
+          : `API key validation failed: ${health.api_key}`;
+        sendToChat(session, { type: "setup_error", text: reason });
+        return;
+      }
     }
-  } catch (e: any) {
-    // Health check timed out or bridge not responding — let user try anyway
-    console.warn("Health check failed:", e.message);
-  }
+  } catch {}  // health check optional
 
   sendToChat(session, { type: "ready" });
   refreshStatusBar();

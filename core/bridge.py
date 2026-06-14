@@ -72,6 +72,8 @@ async def handle_request(method: str, params: dict, msg_id: Any) -> dict | None:
         return await handle_pull_model(params)
     elif method == "current_model":
         return await handle_current_model()
+    elif method == "ensure_model":
+        return await handle_ensure_model()
     elif method == "ping":
         return {"pong": True}
     else:
@@ -423,6 +425,34 @@ async def handle_current_model() -> dict:
         "provider_type": getattr(config.provider, "provider_type", "litellm"),
         "model": config.provider.model,
     }
+
+
+async def handle_ensure_model() -> dict:
+    """Check if configured Ollama model exists, auto-pull if missing."""
+    from core.config import load_config
+
+    config = load_config()
+    provider_type = getattr(config.provider, "provider_type", "litellm")
+    model = config.provider.model
+
+    if provider_type != "ollama":
+        return {"needed": False, "message": "Not using Ollama"}
+
+    try:
+        import httpx
+        async with httpx.AsyncClient() as c:
+            resp = await c.get("http://localhost:11434/api/tags", timeout=5)
+            resp.raise_for_status()
+            installed = resp.json().get("models", [])
+            names = [m["name"] for m in installed]
+            # Match base name (strip :latest suffix)
+            if any(model == n.split(":")[0] for n in names):
+                return {"needed": False, "message": f"Model {model} already installed"}
+
+        # Pull model
+        return {"needed": True, "pulling": True, "message": f"Model {model} not found locally. Auto-pulling... (this may take a few minutes)"}
+    except Exception as e:
+        return {"needed": False, "error": str(e)}
 
 
 def _notify(method: str, params: dict):

@@ -10,10 +10,10 @@ CONFIG_PATH = CONFIG_DIR / "config.toml"
 
 DEFAULT_CONFIG = """\
 # MemoryDog configuration
-# Use LiteLLM model format: provider/model
+# provider_type: "ollama" (local) or "litellm" (cloud API)
 [provider]
-provider_type = "litellm"
-model = "deepseek/deepseek-chat"
+provider_type = "ollama"
+model = "phi4-mini"
 api_key = ""
 # api_base = "https://custom-api.example.com"  # optional
 
@@ -27,8 +27,8 @@ url = "postgresql+asyncpg://memorydog:memorydog@localhost:5432/memorydog"
 
 @dataclass
 class ProviderConfig:
-    provider_type: str = "litellm"
-    model: str = "deepseek/deepseek-chat"
+    provider_type: str = "ollama"
+    model: str = "phi4-mini"
     api_key: str = ""
     api_base: str = ""
 
