@@ -6,6 +6,7 @@ import { DOG_SPRITE_SHEET, SPRITE, DOG_STATES, FRAME_DURATIONS } from "./assets"
 
 let bridge: MemoryDogBridge;
 let statusBarItem: vscode.StatusBarItem;
+let extensionContext: vscode.ExtensionContext;
 
 // ═══════════════════════════════════════════════════════════
 // Session architecture
@@ -38,6 +39,7 @@ function getWorkspaceName(): string {
 // ═══════════════════════════════════════════════════════════
 
 export function activate(context: vscode.ExtensionContext) {
+  extensionContext = context;
   statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
   statusBarItem.text = "$(paw) MemoryDog";
   statusBarItem.tooltip = "MemoryDog";
@@ -313,8 +315,14 @@ async function handleSetConfig(session: Session, msg: any) {
 
 async function handleChat(session: Session, text: string) {
   const configuredKey = (vscode.workspace.getConfiguration("memorydog").get("apiKey") as string || "").trim();
-  if (!configuredKey) {
+  if (!configuredKey && !text.startsWith("/")) {
     sendToChat(session, { type: "setup_error", text: "Please enter an API key before chatting." });
+    return;
+  }
+
+  // Slash command routing
+  if (text.startsWith("/")) {
+    await handleSlashCommand(session, text);
     return;
   }
 
@@ -364,6 +372,162 @@ function filterToken(token: string): string {
   t = t.replace(/<parameter[\s\S]*?<\/parameter>/g, "");
   t = t.replace(/\{"name"\s*:\s*"[^"]*",\s*"arguments"\s*:\s*\{[^}]*\}\}/g, "");
   return t;
+}
+
+// ═══════════════════════════════════════════════════════════
+// Slash Commands
+// ═══════════════════════════════════════════════════════════
+
+const branches = new Map<string, { parentId: string; createdAt: number; name: string }>();
+
+async function handleSlashCommand(session: Session, text: string) {
+  const parts = text.split(/\s+/);
+  const cmd = parts[0].toLowerCase();
+  const arg = parts.slice(1).join(" ");
+
+  switch (cmd) {
+    case "/help":
+      sendToChat(session, { type: "response", content:
+`**Commands**
+- /model — Show current model
+- /models — List installed models
+- /model <name> — Switch active model
+- /new — Create a new session
+- /sessions — List sessions
+- /session <name> — Switch to session
+- /fork — Fork this conversation
+- /branches — List forks
+- /branch <n> — Switch to fork
+- /clear — Clear conversation context
+- /memory — Show memory statistics
+- /status — Show extension status`
+      });
+      break;
+
+    case "/model": {
+      if (arg) {
+        await bridge.setConfig(undefined, arg);
+        sendToChat(session, { type: "response", content: `Model switched to **${arg}**. Send a new message to use it.` });
+      } else {
+        try {
+          const info = await bridge.currentModel();
+          sendToChat(session, { type: "response", content: `**Current model:** ${info.model} (provider: ${info.provider_type})` });
+        } catch (e: any) {
+          sendToChat(session, { type: "error", text: e.message });
+        }
+      }
+      break;
+    }
+
+    case "/models": {
+      try {
+        const result = await bridge.listModels();
+        const lines = result.models.map((m: any) =>
+          `- **${m.name}** (${(m.size / 1e9).toFixed(1)}GB, modified ${new Date(m.modified).toLocaleDateString()})`
+        );
+        sendToChat(session, { type: "response", content: `**Installed models** (${result.count}):\n${lines.join("\n")}` });
+      } catch (e: any) {
+        sendToChat(session, { type: "error", text: `Failed to list models: ${e.message}` });
+      }
+      break;
+    }
+
+    case "/new": {
+      const name = arg || `Session ${sessions.size + 1}`;
+      vscode.commands.executeCommand("memorydog.newSession");
+      break;
+    }
+
+    case "/sessions": {
+      const lines: string[] = [];
+      for (const [id, s] of sessions) {
+        const marker = id === activeSessionId ? "●" : "○";
+        lines.push(`${marker} **${s.name}** (${s.workspace})`);
+      }
+      sendToChat(session, { type: "response", content: `**Sessions** (${sessions.size}):\n${lines.join("\n")}` });
+      break;
+    }
+
+    case "/session": {
+      if (!arg) { sendToChat(session, { type: "error", text: "Usage: /session <name>" }); return; }
+      const match = Array.from(sessions.values()).find(s => s.name.toLowerCase().includes(arg.toLowerCase()));
+      if (match) {
+        openSession(extensionContext, match.id);
+      } else {
+        sendToChat(session, { type: "error", text: `No session matching "${arg}"` });
+      }
+      break;
+    }
+
+    case "/fork": {
+      const forkId = generateId();
+      const forkName = `${session.name} (fork)`;
+      branches.set(forkId, { parentId: session.id, createdAt: Date.now(), name: forkName });
+      openSession(extensionContext, forkId, forkName, session.workspace);
+      break;
+    }
+
+    case "/branches": {
+      const lines: string[] = [];
+      for (const [id, b] of branches) {
+        if (b.parentId === session.id || id === session.id) {
+          const parent = sessions.get(b.parentId);
+          lines.push(`- **${b.name}** ← ${parent?.name || b.parentId}`);
+        }
+      }
+      sendToChat(session, { type: "response", content: `**Branches**:\n${lines.join("\n") || "None"}` });
+      break;
+    }
+
+    case "/branch": {
+      if (!arg) { sendToChat(session, { type: "error", text: "Usage: /branch <name>" }); return; }
+      const match = Array.from(branches.entries()).find(([_, b]) => b.name.toLowerCase().includes(arg.toLowerCase()));
+      if (match) {
+        openSession(extensionContext, match[0]);
+      } else {
+        sendToChat(session, { type: "error", text: `No branch matching "${arg}"` });
+      }
+      break;
+    }
+
+    case "/clear":
+      vscode.commands.executeCommand("memorydog.closeSession", session.id);
+      sendToChat(session, { type: "response", content: "Context cleared." });
+      break;
+
+    case "/memory": {
+      try {
+        const status = await bridge.getStatus(session.workspace);
+        sendToChat(session, { type: "response", content: `**Memory:** ${status.memory_count} memories | **Instincts:** ${status.instinct_count} loaded` });
+      } catch (e: any) {
+        sendToChat(session, { type: "error", text: e.message });
+      }
+      break;
+    }
+
+    case "/status": {
+      try {
+        const info = await bridge.currentModel();
+        const status = await bridge.getStatus(session.workspace);
+        const lines = [
+          `**Provider:** ${info.provider_type}`,
+          `**Model:** ${info.model}`,
+          `**Session:** ${session.name} (${sessions.size} total)`,
+          `**Memories:** ${status.memory_count}`,
+          `**Instincts:** ${status.instinct_count}`,
+          `**Branches:** ${branches.size}`,
+          `**Bridge:** ${bridge.isRunning ? "✅ running" : "❌ stopped"}`,
+        ];
+        sendToChat(session, { type: "response", content: lines.join("\n") });
+      } catch (e: any) {
+        sendToChat(session, { type: "error", text: e.message });
+      }
+      break;
+    }
+
+    default:
+      sendToChat(session, { type: "error", text: `Unknown command: ${cmd}. Type /help for available commands.` });
+  }
 }
 
 // ═══════════════════════════════════════════════════════════

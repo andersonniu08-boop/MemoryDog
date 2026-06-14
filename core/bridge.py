@@ -66,6 +66,12 @@ async def handle_request(method: str, params: dict, msg_id: Any) -> dict | None:
         return await handle_set_config(params)
     elif method == "check_health":
         return await handle_check_health()
+    elif method == "list_models":
+        return await handle_list_models()
+    elif method == "pull_model":
+        return await handle_pull_model(params)
+    elif method == "current_model":
+        return await handle_current_model()
     elif method == "ping":
         return {"pong": True}
     else:
@@ -107,15 +113,20 @@ async def handle_chat(params: dict, msg_id: Any) -> dict:
             state = _agent_states[ws_name]
 
     from core.config import load_config
+    from core.provider import create_provider
 
     config = load_config()
     pc = config.provider
-    model = model_override or pc.model
-    provider = LiteLLMProvider(
-        model=model,
-        api_key=pc.api_key,
-        api_base=pc.api_base or None,
-    )
+
+    # Apply model override if provided
+    if model_override:
+        pc.model = model_override
+
+    provider = create_provider(config)
+
+    # Override model if specified in the chat request
+    if model_override:
+        provider.model = model_override
 
     def on_status(msg: str):
         _notify("status", {"message": msg})
@@ -359,6 +370,59 @@ async def handle_check_health() -> dict:
     )
 
     return result
+
+
+async def handle_list_models() -> dict:
+    """List models installed in Ollama."""
+    try:
+        import httpx
+
+        async with httpx.AsyncClient() as c:
+            resp = await c.get("http://localhost:11434/api/tags", timeout=10)
+            resp.raise_for_status()
+            data = resp.json()
+            models = []
+            for m in data.get("models", []):
+                name = m.get("name", "")
+                models.append({
+                    "name": name,
+                    "size": m.get("size", 0),
+                    "modified": m.get("modified_at", ""),
+                })
+            return {"models": models, "count": len(models)}
+    except Exception as e:
+        return {"error": str(e), "models": [], "count": 0}
+
+
+async def handle_pull_model(params: dict) -> dict:
+    """Pull a model via Ollama. Returns immediately, pull runs in background."""
+    model = params.get("model", "")
+    if not model:
+        return {"error": "model name required"}
+
+    import asyncio
+
+    async def _do_pull():
+        try:
+            import httpx
+            async with httpx.AsyncClient() as c:
+                await c.post("http://localhost:11434/api/pull", json={"model": model}, timeout=600)
+        except Exception:
+            pass
+
+    asyncio.create_task(_do_pull())
+    return {"success": True, "message": f"Pulling {model} in background..."}
+
+
+async def handle_current_model() -> dict:
+    """Return the currently configured model."""
+    from core.config import load_config
+
+    config = load_config()
+    return {
+        "provider_type": getattr(config.provider, "provider_type", "litellm"),
+        "model": config.provider.model,
+    }
 
 
 def _notify(method: str, params: dict):

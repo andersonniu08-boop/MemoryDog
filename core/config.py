@@ -12,6 +12,7 @@ DEFAULT_CONFIG = """\
 # MemoryDog configuration
 # Use LiteLLM model format: provider/model
 [provider]
+provider_type = "litellm"
 model = "deepseek/deepseek-chat"
 api_key = ""
 # api_base = "https://custom-api.example.com"  # optional
@@ -26,6 +27,7 @@ url = "postgresql+asyncpg://memorydog:memorydog@localhost:5432/memorydog"
 
 @dataclass
 class ProviderConfig:
+    provider_type: str = "litellm"
     model: str = "deepseek/deepseek-chat"
     api_key: str = ""
     api_base: str = ""
@@ -84,6 +86,7 @@ def save_config(config: Config) -> None:
 # MemoryDog configuration
 # Use LiteLLM model format: provider/model
 [provider]
+provider_type = "{config.provider.provider_type}"
 model = "{config.provider.model}"
 api_key = "{config.provider.api_key}"
 {base_line}

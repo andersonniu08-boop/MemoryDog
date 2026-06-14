@@ -233,6 +233,146 @@ class LiteLLMProvider(BaseProvider):
             return _format_litellm_error(e)
 
 
+class OllamaProvider(BaseProvider):
+    """Local LLM provider using Ollama's OpenAI-compatible /api/chat endpoint."""
+
+    def __init__(self, model: str = "phi4-mini", endpoint: str = "http://localhost:11434"):
+        self.model = model
+        self.endpoint = endpoint.rstrip("/")
+        self.last_tokens = 0
+
+    def chat(self, messages: list[Message], tools: list[dict] | None = None) -> LLMResponse:
+        try:
+            import httpx
+
+            body = self._build_body(messages, tools, stream=False)
+            resp = httpx.post(
+                f"{self.endpoint}/api/chat",
+                json=body,
+                timeout=120,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            msg = data.get("message", {})
+            return LLMResponse(
+                content=msg.get("content", "") or "",
+                tool_calls=self._parse_tool_calls(data),
+                token_count=data.get("eval_count", 0),
+            )
+        except Exception as e:
+            return LLMResponse(content=f"❌ Local model error: {e}", error=str(e))
+
+    def chat_stream(self, messages, tools=None):
+        try:
+            import httpx
+
+            body = self._build_body(messages, tools, stream=True)
+            full_content = ""
+            tool_calls_acc = {}
+
+            with httpx.stream(
+                "POST",
+                f"{self.endpoint}/api/chat",
+                json=body,
+                timeout=120,
+            ) as resp:
+                resp.raise_for_status()
+                for line in resp.iter_lines():
+                    if not line:
+                        continue
+                    try:
+                        chunk = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+
+                    token = chunk.get("message", {}).get("content", "")
+                    if token:
+                        full_content += token
+                        yield token
+
+                    tc_data = chunk.get("message", {}).get("tool_calls")
+                    if tc_data:
+                        for tc in tc_data:
+                            idx = tc.get("index", 0)
+                            fn = tc.get("function", {})
+                            if idx not in tool_calls_acc:
+                                tool_calls_acc[idx] = {"id": tc.get("id", ""), "name": fn.get("name", ""), "arguments": fn.get("arguments", "")}
+                            else:
+                                tool_calls_acc[idx]["name"] = fn.get("name", "") or tool_calls_acc[idx]["name"]
+                                tool_calls_acc[idx]["arguments"] += fn.get("arguments", "")
+
+                    if chunk.get("done") and chunk.get("eval_count"):
+                        self.last_tokens = chunk["eval_count"]
+
+            tool_calls = [
+                {"id": t["id"], "name": t["name"], "parameters": t["arguments"]}
+                for t in sorted(tool_calls_acc.values(), key=lambda x: x["id"])
+            ]
+            return LLMResponse(content=full_content, tool_calls=tool_calls, token_count=self.last_tokens)
+        except Exception as e:
+            error_msg = str(e)[:200]
+            yield f"❌ Local model error: {error_msg}"
+            return LLMResponse(content="", error=error_msg)
+
+    def check_connection(self) -> str | None:
+        try:
+            import httpx
+
+            resp = httpx.get(f"{self.endpoint}/api/tags", timeout=5)
+            resp.raise_for_status()
+            models = resp.json().get("models", [])
+            if not any(self.model in m.get("name", "") for m in models):
+                return f"Model '{self.model}' not found. Pull it with: ollama pull {self.model}"
+            return None
+        except httpx.ConnectError:
+            return "Ollama not running. Start with: ollama serve"
+        except Exception as e:
+            return f"Ollama error: {e}"
+
+    def _build_body(self, messages, tools, stream=False):
+        msgs = []
+        for m in messages:
+            entry = {"role": m.role, "content": m.content}
+            if m.tool_calls:
+                entry["tool_calls"] = m.tool_calls
+            if m.tool_call_id:
+                entry["tool_call_id"] = m.tool_call_id
+            msgs.append(entry)
+
+        body = {"model": self.model, "messages": msgs, "stream": stream}
+        if tools:
+            body["tools"] = tools
+        return body
+
+    def _parse_tool_calls(self, data: dict) -> list[dict]:
+        tool_calls = []
+        tc_data = data.get("message", {}).get("tool_calls", [])
+        for tc in tc_data:
+            fn = tc.get("function", {})
+            tool_calls.append({
+                "id": tc.get("id", ""),
+                "name": fn.get("name", ""),
+                "parameters": fn.get("arguments", {}),
+            })
+        return tool_calls
+
+
+def create_provider(config: "Config") -> BaseProvider:
+    """Factory: return the correct provider based on config.provider.provider_type."""
+    pc = config.provider
+    provider_type = getattr(pc, "provider_type", "litellm") or "litellm"
+
+    if provider_type == "ollama":
+        endpoint = pc.api_base or "http://localhost:11434"
+        return OllamaProvider(model=pc.model, endpoint=endpoint)
+    else:
+        return LiteLLMProvider(
+            model=pc.model,
+            api_key=pc.api_key,
+            api_base=pc.api_base or None,
+        )
+
+
 def _format_litellm_error(e: Exception) -> str:
     """Extract a user-friendly message from a LiteLLM exception."""
     msg = str(e)

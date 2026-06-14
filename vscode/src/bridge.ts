@@ -241,6 +241,24 @@ export class MemoryDogBridge {
     return result as unknown as { api_key: string; database: string; embedding: string; all_ok: boolean };
   }
 
+  /** List installed Ollama models. */
+  async listModels(): Promise<{ models: { name: string; size: number; modified: string }[]; count: number }> {
+    const result = await this.call("list_models", {});
+    return result as unknown as { models: { name: string; size: number; modified: string }[]; count: number };
+  }
+
+  /** Pull a model via Ollama (runs in background). */
+  async pullModel(model: string): Promise<{ success: boolean; message: string }> {
+    const result = await this.call("pull_model", { model });
+    return result as unknown as { success: boolean; message: string };
+  }
+
+  /** Get the currently configured model. */
+  async currentModel(): Promise<{ provider_type: string; model: string }> {
+    const result = await this.call("current_model", {});
+    return result as unknown as { provider_type: string; model: string };
+  }
+
   /** Process buffered stdout lines. */
   private processBuffer(): void {
     const lines = this.buffer.split("\n");
